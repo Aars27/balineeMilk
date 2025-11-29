@@ -18,7 +18,6 @@ class ApiService {
   ApiService() {
     _initializeInterceptors();
   }
-
   void _initializeInterceptors() {
     _dio.interceptors.add(
       InterceptorsWrapper(

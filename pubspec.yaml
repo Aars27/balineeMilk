@@ -47,6 +47,9 @@ dependencies:
   google_maps_flutter: ^2.14.0
   location:
   fl_chart: ^1.1.1
+  intl:
+  image_picker:
+  pinput:
 
 
 dev_dependencies:

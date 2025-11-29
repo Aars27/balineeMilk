@@ -1,14 +1,12 @@
-// lib/Views/RouteTrackingScreen.dart
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../Components/GoogleMap/GoogleMap.dart';
 import '../../../../Core/Constant/app_colors.dart';
 import '../../../../Core/Constant/text_constants.dart';
+import '../Consumer/ConsumerScreen.dart';
+import '../SpedoMeter/speedometer.dart';
 import 'Controllers/RoutesController.dart';
 import 'Model/RoutesModel.dart';
-
-
 
 class RouteTrackingScreen extends StatefulWidget {
   const RouteTrackingScreen({super.key});
@@ -18,11 +16,12 @@ class RouteTrackingScreen extends StatefulWidget {
 }
 
 class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
-  String _activeView = 'Map View'; // Correctly defined here
+  String _activeView = 'Map View';
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.cardBackground, // Light gray background for the main content
+      backgroundColor: AppColors.cardBackground,
       body: Consumer<RouteController>(
         builder: (context, controller, child) {
           if (controller.isLoading || controller.routeDetails == null) {
@@ -33,7 +32,6 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
 
           return Stack(
             children: [
-              // 1. Top Wavy Background (Need 'assets/dashboard_wave.png')
               Positioned(
                 top: 0,
                 left: 0,
@@ -45,40 +43,42 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
                 ),
               ),
 
-              // 2. Main Scrollable Content
               CustomScrollView(
                 slivers: [
                   SliverList(
-                    delegate: SliverChildListDelegate(
+                    delegate:
+                    SliverChildListDelegate(
                       [
-                        // Header and Greeting
                         _buildHeader(context),
-                        SizedBox(
-                            height: 80
-                        ),
-                        // Main Tracking Info
+                        const SizedBox(height: 80),
+
                         _buildRouteTrackingInfo(context),
-
-                        // Map View
-                        _buildMapView(),
-
                         const SizedBox(height: 15),
 
-                        // Route Progress
-                        _buildRouteProgressCard(context, details),
+                        // SHOW ONLY THE SELECTED SECTION
+                        if (_activeView == 'Map View') ...[
+                          _buildMapView(),
+                          const SizedBox(height: 15),
+                          _buildRouteProgressCard(context, details),
+                          const SizedBox(height: 20),
+                          _buildRecentDeliveries(context, controller.recentDeliveries),
+                        ],
 
-                        const SizedBox(height: 20),
+                        if (_activeView == 'Consumers') ...[
+                          const ConsumerScreenWidget(),
+                        ],
 
-                        // Recent Deliveries
-                        _buildRecentDeliveries(context, controller.recentDeliveries),
+                        if (_activeView == 'Distribution') ...[
+                          _buildDistributionWidget(),
+                        ],
 
-                        const SizedBox(height: 80), // Space for bottom navigation
+                        const SizedBox(height: 80),
                       ],
-                    ),
+                    )
+
                   ),
                 ],
               ),
-
             ],
           );
         },
@@ -86,9 +86,51 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
     );
   }
 
-  // --- Widget Builders ---
+  // -------------------- NEW METHOD FOR SWITCHING VIEWS --------------------
+
+  Widget _buildActiveView(RouteDetails details, List<Delivery> deliveries) {
+    if (_activeView == 'Map View') {
+      return Column(
+        children: [
+          _buildMapView(),
+          const SizedBox(height: 15),
+          _buildRouteProgressCard(context, details),
+          const SizedBox(height: 20),
+          _buildRecentDeliveries(context, deliveries),
+        ],
+      );
+    } else if (_activeView == 'Consumers') {
+      return const ConsumerScreenWidget();
+    } else if (_activeView == 'Distribution') {
+      return _buildDistributionWidget();
+    }
+    return Container();
+  }
+
+
+  // -------------------- NEW DISTRIBUTION WIDGET --------------------
+
+  Widget _buildDistributionWidget() {
+    return Padding(
+      padding: const EdgeInsets.all(20.0),
+      child: Container(
+        height: 200,
+        decoration: BoxDecoration(
+          color: Colors.orange.shade100,
+          borderRadius: BorderRadius.circular(15),
+        ),
+        alignment: Alignment.center,
+        child: const Text(
+          "Distribution Content Here",
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
+  }
+
+  // -------------------- EXISTING WIDGET BUILDERS --------------------
+
   Widget _buildHeader(BuildContext context) {
-    // This should match the dashboard header exactly
     return Padding(
       padding: const EdgeInsets.only(top: 40, left: 20, right: 20, bottom: 10),
       child: Row(
@@ -99,11 +141,11 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
             children: [
               Text(
                 "Shantanu!",
-                style: TextConstants.smallTextStyle.copyWith(fontSize:20,fontWeight: FontWeight.bold),
+                style: TextConstants.smallTextStyle.copyWith(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               Row(
                 children: [
-                  Icon(Icons.location_on,color: Colors.red,size: 14,),
+                  const Icon(Icons.location_on, color: Colors.red, size: 14),
                   Text(
                     "Gomiti nagar Lucknow",
                     style: TextConstants.smallTextStyle.copyWith(fontSize: 13),
@@ -136,52 +178,89 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
     );
   }
 
-  // Inside lib/Views/RouteTrackingScreen.dart
   Widget _buildRouteTrackingInfo(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ... (Route Tracking Title and Speedometer are unchanged)
           Row(
-            // ... (unchanged title/speedometer logic)
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Route Tracking", style: TextConstants.subHeadingStyle.copyWith(fontSize: 16)),
+                  Text("Track your delivery route", style: TextConstants.smallTextStyle),
+                ],
+              ),
+
+              GestureDetector(
+                onTap: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => SpeedometerDialog(),
+                  );
+                },
+
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: AppColors.accentRed,
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.speed, size: 20, color: AppColors.white),
+                      const SizedBox(width: 5),
+                      Text('Speedometer', style: TextConstants.bodyStyle.copyWith(color: AppColors.white, fontSize: 12)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 10),
 
-          // Action Tabs (Map View, Consumers, Distribution) - MODIFIED
+          // TABS
           Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-
-              // Map View
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
               _buildRouteTab('Map View', _activeView == 'Map View', () => setState(() => _activeView = 'Map View')),
-          const SizedBox(width: 10),
+              const SizedBox(width: 10),
+              _buildRouteTab('Consumers', _activeView == 'Consumers', () => setState(() => _activeView = 'Consumers')),
+              const SizedBox(width: 10),
+              _buildRouteTab('Distribution', _activeView == 'Distribution', () => setState(() => _activeView = 'Distribution')),
+            ],
+          ),
+          const SizedBox(height: 15),
 
-          // Consumers
-          _buildRouteTab('Consumers', _activeView == 'Consumers', () => setState(() => _activeView = 'Consumers')),
-          const SizedBox(width: 10),
+          if (_activeView == 'Map View')
+            Consumer<RouteController>(
+              builder: (context, controller, child) {
+                final details = controller.routeDetails!;
+                return Row(
+                  children: [
+                    Expanded(
+                      child: _buildMetricDetailCard('${details.totalDistanceKm} km', 'Total Distance'),
+                    ),
+                    const SizedBox(width: 15),
+                    Expanded(
+                      child: _buildMetricDetailCard('${details.estimatedTimeMin} min', 'Est. Time'),
+                    ),
+                  ],
+                );
+              },
+            )
+          else
+            const SizedBox.shrink(),
 
-          // Distribution
-          _buildRouteTab('Distribution', _activeView == 'Distribution', () => setState(() => _activeView = 'Distribution')),
+
+
         ],
       ),
-      const SizedBox(height: 15),
-
-      // Metrics Cards (Distance & Time) - UNCHANGED
-      Consumer<RouteController>(
-        builder: (context, controller, child) {
-          final details = controller.routeDetails!;
-          return Row(
-            // ... (unchanged metric cards logic)
-          );
-        },
-      ),
-      ],
-    ),
     );
   }
-
 
   Widget _buildRouteTab(String title, bool isActive, VoidCallback onTap) {
     return Expanded(
@@ -189,7 +268,6 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
         onTap: onTap,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-          // isActive now comes directly from the function call
           decoration: BoxDecoration(
             color: isActive ? AppColors.primary : AppColors.white,
             borderRadius: BorderRadius.circular(15),
@@ -199,9 +277,9 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
             child: Text(
               title,
               style: TextConstants.bodyStyle.copyWith(
-                  color: isActive ? AppColors.white : AppColors.textDark,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 12
+                color: isActive ? AppColors.white : AppColors.textDark,
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
               ),
             ),
           ),
@@ -223,7 +301,7 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(value, style: TextConstants.subHeadingStyle.copyWith(fontSize:14,fontWeight: FontWeight.bold)),
+          Text(value, style: TextConstants.subHeadingStyle.copyWith(fontSize: 14, fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
           Text(subtitle, style: TextConstants.smallTextStyle),
         ],
@@ -232,23 +310,18 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
   }
 
   Widget _buildMapView() {
-    // Replace the placeholder Container with the actual live map widget
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 15),
       child: Container(
         height: 250,
         decoration: BoxDecoration(
-            color: Colors.grey[300],
-            borderRadius: BorderRadius.circular(15),
-            boxShadow: [
-              BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, 5)
-              )
-            ]
+          color: Colors.grey[300],
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: Offset(0, 5)),
+          ],
         ),
-        child: const LiveMapWidget(), // <-- Using the new LiveMapWidget
+        child: const LiveMapWidget(),
       ),
     );
   }
@@ -262,7 +335,6 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 20.0),
       child: Column(
         children: [
-          // Progress Bar
           Container(
             padding: const EdgeInsets.all(15),
             decoration: BoxDecoration(
@@ -280,7 +352,7 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
                   children: [
                     Text('Route Progress', style: TextConstants.subHeadingStyle.copyWith(fontSize: 14)),
                     Text('${details.progressPercent.toStringAsFixed(0)}%',
-                        style: TextConstants.headingStyle.copyWith(color: AppColors.accentRed,fontSize: 12)),
+                        style: TextConstants.headingStyle.copyWith(color: AppColors.accentRed, fontSize: 12)),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -289,14 +361,14 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
                   backgroundColor: AppColors.cardBackground,
                   valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
                   minHeight: 4,
-                  borderRadius: BorderRadius.circular(8),
                 ),
                 const SizedBox(height: 6),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text('$completed Completed', style: TextConstants.smallTextStyle.copyWith(fontSize: 12)),
-                    Text('$pending Pending', style: TextConstants.smallTextStyle.copyWith(color: AppColors.accentRed,fontSize: 12)),
+                    Text('$pending Pending',
+                        style: TextConstants.smallTextStyle.copyWith(color: AppColors.accentRed, fontSize: 12)),
                   ],
                 ),
               ],
@@ -304,23 +376,21 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
           ),
           const SizedBox(height: 15),
 
-          // Start Route Button
           SizedBox(
             width: 200,
             child: ElevatedButton(
               onPressed: () {},
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
-                // minimumSize: const Size(double.infinity,40),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                 elevation: 3,
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  const Icon(Icons.location_on, color: AppColors.white,size: 12,),
-                  // const SizedBox(width: 2),
-                  Text('Start Route Navigation', style: TextConstants.subHeadingStyle.copyWith(color: AppColors.white,fontSize: 12)),
+                  const Icon(Icons.location_on, color: AppColors.white, size: 12),
+                  Text('Start Route Navigation',
+                      style: TextConstants.subHeadingStyle.copyWith(color: AppColors.white, fontSize: 12)),
                 ],
               ),
             ),
@@ -354,9 +424,7 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(15),
-        border: Border(
-          left: BorderSide(color: statusColor, width: 6),
-        ),
+        border: Border(left: BorderSide(color: statusColor, width: 6)),
         boxShadow: [
           BoxShadow(color: AppColors.textDark.withOpacity(0.05), blurRadius: 5),
         ],
@@ -366,7 +434,8 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
         children: [
           Row(
             children: [
-              Icon(d.isCompleted ? Icons.check_circle : Icons.radio_button_checked, color: statusColor, size: 24),
+              Icon(d.isCompleted ? Icons.check_circle : Icons.radio_button_checked,
+                  color: statusColor, size: 24),
               const SizedBox(width: 10),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -380,30 +449,13 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
 
           Row(
             children: [
-              Icon(Icons.call, color: AppColors.primary, size: 24),
+              const Icon(Icons.call, color: AppColors.primary, size: 24),
               const SizedBox(width: 10),
-              Icon(Icons.message, color: AppColors.primary, size: 24),
+              const Icon(Icons.message, color: AppColors.primary, size: 24),
             ],
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildNavItem(IconData icon, String label, bool isActive) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(icon, color: isActive ? AppColors.white : AppColors.textDark.withOpacity(0.7), size: 24),
-        Text(
-          label,
-          style: TextStyle(
-            color: isActive ? AppColors.white : AppColors.textDark.withOpacity(0.7),
-            fontSize: 10,
-            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-          ),
-        ),
-      ],
     );
   }
 }
