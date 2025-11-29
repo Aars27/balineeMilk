@@ -50,6 +50,8 @@ dependencies:
   intl:
   image_picker:
   pinput:
+  url_launcher: ^6.3.2
+
 
 
 dev_dependencies:

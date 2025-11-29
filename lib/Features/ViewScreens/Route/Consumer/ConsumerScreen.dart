@@ -1,175 +1,268 @@
 import 'package:flutter/material.dart';
-
+import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../../Core/Constant/app_colors.dart';
 import '../../../../Core/Constant/text_constants.dart';
-import 'ConsumerModal.dart';
+import 'Consumer_provider.dart';
 
-
-
-class ConsumerScreenWidget extends StatelessWidget {
+class ConsumerScreenWidget extends StatefulWidget {
   const ConsumerScreenWidget({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Header Section
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                  "Assigned Consumers",
-                  style: TextConstants.subHeadingStyle.copyWith(fontSize: 16) // Assuming subHeadingStyle is available
-              ),
-              Text(
-                  "(Manage your daily deliveries)",
-                  style: TextConstants.smallTextStyle // Assuming smallTextStyle is available
-              ),
-              const SizedBox(height: 15),
+  State<ConsumerScreenWidget> createState() => _ConsumerScreenWidgetState();
+}
 
-              // Search Bar and Filter (Row)
-              Row(
+class _ConsumerScreenWidgetState extends State<ConsumerScreenWidget> {
+
+  // Function to make phone call
+  Future<void> _makePhoneCall(String phoneNumber) async {
+    final Uri launchUri = Uri(
+      scheme: 'tel',
+      path: phoneNumber,
+    );
+
+    try {
+      if (await canLaunchUrl(launchUri)) {
+        await launchUrl(launchUri);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not launch phone dialer')),
+          );
+        }
+      }
+    } catch (e) {
+      print('Error launching dialer: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<ConsumerProvider>(
+      builder: (context, provider, child) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Container(
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: AppColors.white,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppColors.textLight.withOpacity(0.3)),
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.search, size: 20, color: Colors.grey),
-                          const SizedBox(width: 8),
-                          // Search Input Field
-                          Expanded(
-                            child: TextField(
-                              decoration: InputDecoration(
-                                hintText: 'Search by name or mobile no.',
-                                hintStyle: TextConstants.smallTextStyle,
-                                border: InputBorder.none,
-                                contentPadding: const EdgeInsets.only(bottom: 12),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                  Text(
+                    "Assigned Consumers",
+                    style: TextConstants.subHeadingStyle.copyWith(fontSize: 16),
                   ),
-                  const SizedBox(width: 10),
-                  // Filter Button
-                  // Container(
-                  //   height: 40,
-                  //   padding: const EdgeInsets.symmetric(horizontal: 12),
-                  //   decoration: BoxDecoration(
-                  //     color: AppColors.white,
-                  //     borderRadius: BorderRadius.circular(10),
-                  //     border: Border.all(color: AppColors.textLight.withOpacity(0.3)),
-                  //   ),
-                  //   child: Row(
-                  //     children: [
-                  //       Text('All', style: TextConstants.bodyStyle.copyWith(fontWeight: FontWeight.w600)),
-                  //       const Icon(Icons.keyboard_arrow_down, size: 20, color: AppColors.textDark),
-                  //     ],
-                  //   ),
-                  // ),
+                  Text(
+                    "(Manage your daily deliveries)",
+                    style: TextConstants.smallTextStyle,
+                  ),
+                  const SizedBox(height: 15),
                 ],
               ),
-              const SizedBox(height: 20),
-            ],
-          ),
-        ),
+            ),
 
-        // Consumer List (Using ListView.builder for performance)
-        ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(), // Important to scroll with the parent CustomScrollView
-          padding: const EdgeInsets.symmetric(horizontal: 20.0),
-          itemCount: dummyConsumers.length,
-          itemBuilder: (context, index) {
-            final consumer = dummyConsumers[index];
-            return _buildConsumerItem(consumer);
-          },
-        ),
+            // Loading State
+            if (provider.loading)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(20.0),
+                  child: CircularProgressIndicator(),
+                ),
+              )
 
-        const SizedBox(height: 80), // Final spacing
-      ],
+            // Error State
+            else if (provider.errorMessage != null)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                      const SizedBox(height: 10),
+                      Text(
+                        "Failed to load consumers",
+                        style: TextConstants.bodyStyle.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+
+            // Empty State
+            else if (provider.consumers.isEmpty)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.people_outline,
+                          size: 64,
+                          color: Colors.grey.shade400,
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          "No consumers assigned",
+                          style: TextConstants.bodyStyle.copyWith(
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+
+              // Data List - FIXED: Removed shrinkWrap & NeverScrollableScrollPhysics
+              else
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(
+                    children: provider.consumers
+                        .map((consumer) => _buildConsumerItem(consumer))
+                        .toList(),
+                  ),
+                ),
+
+            const SizedBox(height: 50),
+          ],
+        );
+      },
     );
   }
 
-  // Helper Widget for a single consumer item
-  Widget _buildConsumerItem(ConsumerModel consumer) {
-    final bool isDelivered = consumer.status == 'Delivered';
-    final Color statusColor = isDelivered ? AppColors.primaryGreen : AppColors.accentRed.withOpacity(0.6);
+  Widget _buildConsumerItem(consumer) {
+    final bool isDelivered = consumer.status.toLowerCase() == "delivered";
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.cardBackground, // Light background for the list item
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(color: AppColors.textDark.withOpacity(0.05), blurRadius: 5),
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 5,
+            offset: Offset(0, 2),
+          ),
         ],
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Left Side: Initials, Name, Details
-          Row(
-            children: [
-              // Initials Circle
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: AppColors.primary, // Placeholder color
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  consumer.initials,
-                  style: TextConstants.headingStyle.copyWith(color: AppColors.white, fontSize: 16),
-                ),
+          // LEFT - Avatar
+          Container(
+            width: 42,
+            height: 42,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.primary,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              consumer.initials,
+              style: TextConstants.headingStyle.copyWith(
+                color: Colors.white,
+                fontSize: 16,
               ),
-              const SizedBox(width: 10),
-              // Name and Time
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(consumer.name, style: TextConstants.bodyStyle.copyWith(fontWeight: FontWeight.w600)),
-                  Text(consumer.time, style: TextConstants.smallTextStyle),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      // Retailer Tag
-                      _buildTag(consumer.type, Colors.pink.shade100, Colors.pink.shade800),
-                      const SizedBox(width: 8),
-                      // Quantity Tag
-                      _buildTag(consumer.quantity, Colors.lightGreen.shade100, AppColors.primaryGreen),
-                    ],
+            ),
+          ),
+          const SizedBox(width: 12),
+
+          // MIDDLE - Consumer Details
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  consumer.customerName,
+                  style: TextConstants.bodyStyle.copyWith(
+                    fontWeight: FontWeight.w600,
                   ),
-                ],
-              ),
-            ],
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  consumer.time,
+                  style: TextConstants.smallTextStyle,
+                ),
+                const SizedBox(height: 4),
+
+                // Product Tags
+                Row(
+                  children: [
+                    _buildTag(
+                      consumer.productName,
+                      Colors.pink.shade100,
+                      Colors.pink.shade800,
+                    ),
+                    const SizedBox(width: 6),
+                    _buildTag(
+                      "${consumer.quantity}${consumer.unit}",
+                      Colors.green.shade100,
+                      AppColors.primaryGreen,
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 3),
+                Text(
+                  consumer.address,
+                  style: TextConstants.smallTextStyle.copyWith(
+                    color: Colors.grey,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
 
-          // Right Side: Call, Chat, Status
-          Row(
+          const SizedBox(width: 8),
+
+          // RIGHT - Call Button & Status
+          Column(
             children: [
-              // Call Icon
-              Icon(Icons.call, color: AppColors.accentRed, size: 22),
-              const SizedBox(width: 10),
-              // Status Tag
+              // Call Icon Button
+              InkWell(
+                onTap: () {
+                  // Add phone number to your ConsumerModel if not present
+                  // For now using a placeholder
+                  final phoneNumber = consumer.phoneNumber ?? "";
+                  if (phoneNumber.isNotEmpty) {
+                    _makePhoneCall(phoneNumber);
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Phone number not available'),
+                      ),
+                    );
+                  }
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.phone,
+                    color: AppColors.primary,
+                    size: 20,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              // Status Badge
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: isDelivered ? AppColors.primaryGreen.withOpacity(0.2) : Colors.orange,
+                  color: isDelivered
+                      ? AppColors.primaryGreen.withOpacity(0.15)
+                      : Colors.orange,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -177,6 +270,7 @@ class ConsumerScreenWidget extends StatelessWidget {
                   style: TextConstants.smallTextStyle.copyWith(
                     color: isDelivered ? AppColors.primaryGreen : Colors.white,
                     fontWeight: FontWeight.bold,
+                    fontSize: 10,
                   ),
                 ),
               ),
@@ -187,20 +281,19 @@ class ConsumerScreenWidget extends StatelessWidget {
     );
   }
 
-  // Helper Widget for small tags
-  Widget _buildTag(String text, Color bgColor, Color textColor) {
+  Widget _buildTag(String text, Color bg, Color textColor) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: bgColor,
+        color: bg,
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
         text,
         style: TextConstants.smallTextStyle.copyWith(
           color: textColor,
-          fontSize: 10,
           fontWeight: FontWeight.w600,
+          fontSize: 10,
         ),
       ),
     );

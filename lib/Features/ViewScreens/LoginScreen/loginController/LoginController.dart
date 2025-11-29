@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
 import '../LoginModal/LoginModel.dart';
-import '../../../../Core/Constant/ApiServices.dart';   // your Dio ApiService
+import '../../../../Core/Constant/ApiServices.dart';
 
 class LoginController with ChangeNotifier {
   final LoginModel _model = LoginModel();
@@ -33,8 +32,8 @@ class LoginController with ChangeNotifier {
     _isPasswordVisible = !_isPasswordVisible;
     notifyListeners();
   }
-// login function
 
+  // Login function - FIXED
   Future<void> login(BuildContext context) async {
     if (!formKey.currentState!.validate()) return;
 
@@ -42,6 +41,7 @@ class LoginController with ChangeNotifier {
     notifyListeners();
 
     try {
+      print("🔵 LOGIN: Starting login...");
       final api = ApiService();
 
       final response = await api.login(
@@ -49,15 +49,26 @@ class LoginController with ChangeNotifier {
         _model.password.trim(),
       );
 
+      print("🔵 LOGIN: Response received: $response");
+
       final bool success = response["flag"] ?? false;
 
       if (success) {
         final token = response["data"]["api_token"];
         final firstName = response["data"]["first_name"];
 
+        print("✅ LOGIN: Token received: ${token.substring(0, 20)}...");
+        print("✅ LOGIN: User: $firstName");
+
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString("api_token", token);
+
+        // ✅ FIXED: Save with consistent key name
+        await prefs.setString("user_token", token);  // Changed from "api_token"
         await prefs.setString("user_name", firstName);
+
+        // Verify token was saved
+        String? savedToken = prefs.getString("user_token");
+        print("✅ LOGIN: Token saved verification: ${savedToken != null ? 'SUCCESS' : 'FAILED'}");
 
         Fluttertoast.showToast(
           msg: "Login successful",
@@ -73,6 +84,7 @@ class LoginController with ChangeNotifier {
         }
 
       } else {
+        print("❌ LOGIN: Invalid credentials");
         Fluttertoast.showToast(
           msg: "Invalid username or password",
           backgroundColor: Colors.red,
@@ -80,7 +92,10 @@ class LoginController with ChangeNotifier {
         );
       }
 
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print("❌ LOGIN ERROR: $e");
+      print("❌ STACK TRACE: $stackTrace");
+
       Fluttertoast.showToast(
         msg: "Login failed. Please try again.",
         backgroundColor: Colors.red,

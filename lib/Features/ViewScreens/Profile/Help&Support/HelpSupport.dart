@@ -9,8 +9,12 @@ class HelpAndSupportPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Help & Support'),
-        backgroundColor: Theme.of(context).primaryColor,
+        iconTheme: IconThemeData(
+          color: Colors.white
+        ),
+        title: const Text('Help & Support',style: TextStyle(
+            color: Colors.white,fontWeight: FontWeight.w600),),
+        backgroundColor: Colors.orange,
       ),
       body: const SingleChildScrollView(
         padding: EdgeInsets.all(16.0),
@@ -52,7 +56,7 @@ class HelpSectionTitle extends StatelessWidget {
         style: TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.bold,
-          color: Theme.of(context).primaryColor,
+          color: Colors.black,
         ),
       ),
     );

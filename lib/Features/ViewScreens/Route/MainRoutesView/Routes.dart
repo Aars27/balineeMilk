@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../Components/GoogleMap/GoogleMap.dart';
 import '../../../../Core/Constant/app_colors.dart';
 import '../../../../Core/Constant/text_constants.dart';
 import '../Consumer/ConsumerScreen.dart';
+import '../Consumer/Consumer_provider.dart';
 import '../SpedoMeter/speedometer.dart';
 import 'Controllers/RoutesController.dart';
 import 'Model/RoutesModel.dart';
@@ -101,6 +103,9 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
       );
     } else if (_activeView == 'Consumers') {
       return const ConsumerScreenWidget();
+
+
+
     } else if (_activeView == 'Distribution') {
       return _buildDistributionWidget();
     }
@@ -127,6 +132,7 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
       ),
     );
   }
+
 
   // -------------------- EXISTING WIDGET BUILDERS --------------------
 
@@ -190,11 +196,16 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text("Route Tracking", style: TextConstants.subHeadingStyle.copyWith(fontSize: 16)),
-                  Text("Track your delivery route", style: TextConstants.smallTextStyle),
+                  Text(
+                    "Route Tracking",
+                    style: TextConstants.subHeadingStyle.copyWith(fontSize: 16),
+                  ),
+                  Text(
+                    "Track your delivery route",
+                    style: TextConstants.smallTextStyle,
+                  ),
                 ],
               ),
-
               GestureDetector(
                 onTap: () {
                   showDialog(
@@ -202,7 +213,6 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
                     builder: (context) => SpeedometerDialog(),
                   );
                 },
-
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
@@ -213,7 +223,13 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
                     children: [
                       const Icon(Icons.speed, size: 20, color: AppColors.white),
                       const SizedBox(width: 5),
-                      Text('Speedometer', style: TextConstants.bodyStyle.copyWith(color: AppColors.white, fontSize: 12)),
+                      Text(
+                        'Speedometer',
+                        style: TextConstants.bodyStyle.copyWith(
+                          color: AppColors.white,
+                          fontSize: 12,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -226,41 +242,158 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildRouteTab('Map View', _activeView == 'Map View', () => setState(() => _activeView = 'Map View')),
+              _buildRouteTab(
+                'Map View',
+                _activeView == 'Map View',
+                    () => setState(() => _activeView = 'Map View'),
+              ),
               const SizedBox(width: 10),
-              _buildRouteTab('Consumers', _activeView == 'Consumers', () => setState(() => _activeView = 'Consumers')),
+
+              _buildRouteTab(
+                'Consumers',
+                _activeView == 'Consumers',
+                    () async {
+                  print("═══════════════════════════════════════");
+                  print("🔵 CONSUMER TAB CLICKED!");
+                  print("═══════════════════════════════════════");
+
+                  setState(() {
+                    _activeView = 'Consumers';
+                    print("✅ Active view set to: $_activeView");
+                  });
+
+                  try {
+                    // Step 1: Get SharedPreferences
+                    print("\n📱 STEP 1: Getting SharedPreferences...");
+                    SharedPreferences prefs = await SharedPreferences.getInstance();
+                    print("✅ SharedPreferences loaded");
+
+                    // Step 2: Check ALL saved keys
+                    print("\n📱 STEP 2: Checking all saved keys...");
+                    Set<String> allKeys = prefs.getKeys();
+                    print("📋 All Keys: $allKeys");
+
+                    // Step 3: Try both possible token keys
+                    print("\n📱 STEP 3: Checking token keys...");
+                    String? token1 = prefs.getString("api_token");
+                    String? token2 = prefs.getString("user_token");
+
+                    print("🔑 api_token: ${token1 != null ? 'EXISTS (${token1.length} chars)' : 'NULL'}");
+                    print("🔑 user_token: ${token2 != null ? 'EXISTS (${token2.length} chars)' : 'NULL'}");
+
+                    // Use whichever token exists
+                    String? token = token1 ?? token2;
+
+                    if (token == null || token.isEmpty) {
+                      print("\n❌ NO TOKEN FOUND!");
+                      print("❌ Available keys: $allKeys");
+
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text("No authentication token found. Please login again."),
+                            backgroundColor: Colors.red,
+                            duration: Duration(seconds: 3),
+                          ),
+                        );
+                      }
+                      return;
+                    }
+
+                    print("\n✅ Token found: ${token.substring(0, 30)}...");
+                    print("✅ Token length: ${token.length}");
+
+                    // Step 4: Check if widget is mounted
+                    print("\n📱 STEP 4: Checking widget mount status...");
+                    if (!mounted) {
+                      print("❌ Widget NOT mounted!");
+                      return;
+                    }
+                    print("✅ Widget is mounted");
+
+                    // Step 5: Get Provider
+                    print("\n📱 STEP 5: Getting ConsumerProvider...");
+                    final provider = Provider.of<ConsumerProvider>(context, listen: false);
+                    print("✅ Provider instance: ${provider.hashCode}");
+                    print("📊 Current consumers count: ${provider.consumers.length}");
+                    print("⏳ Current loading state: ${provider.loading}");
+
+                    // Step 6: Call loadConsumers
+                    print("\n📱 STEP 6: Calling loadConsumers...");
+                    await provider.loadConsumers(token);
+
+                    print("\n🎉 LOAD COMPLETE!");
+                    print("📊 Final consumers count: ${provider.consumers.length}");
+                    print("❌ Error message: ${provider.errorMessage ?? 'None'}");
+
+                    if (provider.consumers.isNotEmpty) {
+                      print("✅ First consumer: ${provider.consumers[0].customerName}");
+                    }
+
+                    print("═══════════════════════════════════════");
+
+                  } catch (e, stackTrace) {
+                    print("\n💥 EXCEPTION IN TAB HANDLER!");
+                    print("❌ Error: $e");
+                    print("❌ Stack trace:\n$stackTrace");
+                    print("═══════════════════════════════════════");
+
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text("Error: $e"),
+                          backgroundColor: Colors.red,
+                          duration: const Duration(seconds: 3),
+                        ),
+                      );
+                    }
+                  }
+                },
+              ),
+
+
+
+
+
+
+
               const SizedBox(width: 10),
-              _buildRouteTab('Distribution', _activeView == 'Distribution', () => setState(() => _activeView = 'Distribution')),
+              _buildRouteTab(
+                'Distribution',
+                _activeView == 'Distribution',
+                    () => setState(() => _activeView = 'Distribution'),
+              ),
             ],
           ),
           const SizedBox(height: 15),
 
+          // Content based on active view
           if (_activeView == 'Map View')
             Consumer<RouteController>(
               builder: (context, controller, child) {
-                final details = controller.routeDetails!;
+                if (controller.routeDetails == null) {
+                  return const SizedBox.shrink();
+                }
                 return Row(
                   children: [
-                    Expanded(
-                      child: _buildMetricDetailCard('${details.totalDistanceKm} km', 'Total Distance'),
-                    ),
-                    const SizedBox(width: 15),
-                    Expanded(
-                      child: _buildMetricDetailCard('${details.estimatedTimeMin} min', 'Est. Time'),
-                    ),
                   ],
                 );
               },
             )
-          else
-            const SizedBox.shrink(),
-
-
-
+          else if (_activeView == 'Consumers')
+            const ConsumerScreenWidget()
+          else if (_activeView == 'Distribution')
+            // Your distribution widget here
+              const SizedBox.shrink()
+            else
+              const SizedBox.shrink(),
         ],
       ),
     );
   }
+
+
+
 
   Widget _buildRouteTab(String title, bool isActive, VoidCallback onTap) {
     return Expanded(
