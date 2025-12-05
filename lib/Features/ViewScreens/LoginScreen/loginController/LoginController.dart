@@ -1,31 +1,55 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
+
+import '../../../../Components/Providers/UserInfoProviders.dart';
+import '../../../../Components/Savetoken/SaveToken.dart';
 import '../LoginModal/LoginModel.dart';
-import '../../../../Core/Constant/ApiServices.dart';
 
-class LoginController with ChangeNotifier {
-  final LoginModel _model = LoginModel();
-  final formKey = GlobalKey<FormState>();
 
-  bool _isLoading = false;
+class LoginController extends ChangeNotifier {
+  // ✅ Form Key
+  final GlobalKey<FormState> formKey = GlobalKey<FormState>();
+
+  // ✅ Dio instance
+  final Dio _dio = Dio(BaseOptions(
+    baseUrl: "https://balinee.pmmsapp.com/api",
+    connectTimeout: const Duration(seconds: 15),
+    receiveTimeout: const Duration(seconds: 15),
+  ));
+
+  // ✅ State Variables
+  String _username = '';
+  String _password = '';
   bool _isPasswordVisible = false;
+  bool _rememberMe = false;
+  bool _isLoading = false;
 
-  LoginController(BuildContext context);
-
-  LoginModel get model => _model;
-  bool get isLoading => _isLoading;
+  // ✅ Getters
+  String get username => _username;
+  String get password => _password;
   bool get isPasswordVisible => _isPasswordVisible;
+  bool get rememberMe => _rememberMe;
+  bool get isLoading => _isLoading;
 
-  void setUsername(String value) => _model.username = value;
-  void setPassword(String value) => _model.password = value;
+  // ✅ Model for backward compatibility (if you have LoginModel)
+  LoginModel get model => LoginModel(
+    username: _username,
+    password: _password,
+    rememberMe: _rememberMe,
+  );
 
-  void toggleRememberMe(bool? value) {
-    if (value != null) {
-      _model.rememberMe = value;
-      notifyListeners();
-    }
+  // ✅ Setters
+  void setUsername(String value) {
+    _username = value;
+    notifyListeners();
+  }
+
+  void setPassword(String value) {
+    _password = value;
+    notifyListeners();
   }
 
   void togglePasswordVisibility() {
@@ -33,77 +57,129 @@ class LoginController with ChangeNotifier {
     notifyListeners();
   }
 
-  // Login function - FIXED
+  void toggleRememberMe(bool? value) {
+    _rememberMe = value ?? false;
+    notifyListeners();
+  }
+
+  // ✅ Login Method
   Future<void> login(BuildContext context) async {
-    if (!formKey.currentState!.validate()) return;
+    // Validate form
+    if (!formKey.currentState!.validate()) {
+      return;
+    }
 
     _isLoading = true;
     notifyListeners();
 
     try {
-      print("🔵 LOGIN: Starting login...");
-      final api = ApiService();
+      final response = await _dio.post('/login', data: {
+        'mobile_no': _username,
+        'password': _password,
+      });
 
-      final response = await api.login(
-        _model.username.trim(),
-        _model.password.trim(),
-      );
+      if (response.statusCode == 200) {
+        final responseData = response.data;
 
-      print("🔵 LOGIN: Response received: $response");
+        // Check if login was successful
+        if (responseData['flag'] == true) {
+          final data = responseData['data'];
 
-      final bool success = response["flag"] ?? false;
+          print("🔍 Login Response: $data");
 
-      if (success) {
-        final token = response["data"]["api_token"];
-        final firstName = response["data"]["first_name"];
+          // ✅ Combine first_name and last_name
+          String fullName = "${data['first_name']} ${data['last_name']}";
 
-        print("✅ LOGIN: Token received: ${token.substring(0, 20)}...");
-        print("✅ LOGIN: User: $firstName");
+          // ✅ SAVE USER DATA
+          await TokenHelper().saveAuthData(
+            token: data['api_token'],
+            userName: data['mobile_no'],
+            userId: data['id'].toString(),
+            fullName: fullName,
+          );
 
-        final prefs = await SharedPreferences.getInstance();
+          // ✅ Debug: Verify data was saved
+          await TokenHelper().debugPrintAuthData();
 
-        // ✅ FIXED: Save with consistent key name
-        await prefs.setString("user_token", token);  // Changed from "api_token"
-        await prefs.setString("user_name", firstName);
+          // ✅ Initialize Provider to load user info
+          if (context.mounted) {
+            final provider = Provider.of<UserInfoProvider>(context, listen: false);
+            await provider.initialize();
 
-        // Verify token was saved
-        String? savedToken = prefs.getString("user_token");
-        print("✅ LOGIN: Token saved verification: ${savedToken != null ? 'SUCCESS' : 'FAILED'}");
+            print("✅ Provider Full Name: ${provider.fullName}");
+          }
 
-        Fluttertoast.showToast(
-          msg: "Login successful",
-          backgroundColor: Colors.green,
-          textColor: Colors.white,
-        );
+          _isLoading = false;
+          notifyListeners();
 
+          // Show success message
+          Fluttertoast.showToast(
+            msg: responseData['message'] ?? 'Login successful',
+            backgroundColor: Colors.green,
+          );
+
+          // Navigate to dashboard
+          if (context.mounted) {
+            context.go('/bottombar');
+          }
+        } else {
+          _isLoading = false;
+          notifyListeners();
+
+          Fluttertoast.showToast(
+            msg: responseData['message'] ?? 'Login failed',
+            backgroundColor: Colors.red,
+          );
+        }
+      } else {
         _isLoading = false;
         notifyListeners();
 
-        if (context.mounted) {
-          context.go('/bottombar');
-        }
-
-      } else {
-        print("❌ LOGIN: Invalid credentials");
         Fluttertoast.showToast(
-          msg: "Invalid username or password",
+          msg: 'Login failed. Please try again.',
           backgroundColor: Colors.red,
-          textColor: Colors.white,
         );
       }
+    } on DioException catch (e) {
+      _isLoading = false;
+      notifyListeners();
 
-    } catch (e, stackTrace) {
-      print("❌ LOGIN ERROR: $e");
-      print("❌ STACK TRACE: $stackTrace");
+      String errorMessage = 'Login failed';
+
+      if (e.response?.data != null && e.response?.data['message'] != null) {
+        errorMessage = e.response?.data['message'];
+      } else if (e.message != null) {
+        errorMessage = e.message!;
+      }
+
+      print("❌ Login Error: $errorMessage");
 
       Fluttertoast.showToast(
-        msg: "Login failed. Please try again.",
+        msg: errorMessage,
         backgroundColor: Colors.red,
-        textColor: Colors.white,
+      );
+    } catch (e) {
+      _isLoading = false;
+      notifyListeners();
+
+      print("❌ Unexpected Error: $e");
+
+      Fluttertoast.showToast(
+        msg: 'An unexpected error occurred',
+        backgroundColor: Colors.red,
       );
     }
+  }
 
-    _isLoading = false;
+  // ✅ Clear form
+  void clearForm() {
+    _username = '';
+    _password = '';
+    _isPasswordVisible = false;
+    if (!_rememberMe) {
+      _rememberMe = false;
+    }
     notifyListeners();
   }
 }
+

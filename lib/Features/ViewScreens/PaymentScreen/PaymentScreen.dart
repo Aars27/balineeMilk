@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../Components/Providers/UserInfoProviders.dart';
 import '../../../Core/Constant/app_colors.dart';
 import '../../../Core/Constant/text_constants.dart';
 
@@ -75,6 +76,8 @@ class PaymentManagementScreen extends StatelessWidget {
 
   // Reusing components from the Dashboard
   Widget _buildHeader(BuildContext context) {
+    final userInfo = Provider.of<UserInfoProvider>(context);
+
     return Padding(
       padding: const EdgeInsets.only(top: 40, left: 20, right: 20, bottom: 10),
       child: Column(
@@ -87,21 +90,25 @@ class PaymentManagementScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    "Shantanu!",
+                    userInfo.isLoadingUser
+                        ? "Loading..."
+                        : "${userInfo.getFullName()}!",
                     style: TextConstants.smallTextStyle.copyWith(fontSize:20,fontWeight: FontWeight.bold),
                   ),
                   Row(
                     children: [
                       Icon(Icons.location_on,color: Colors.red,size: 14,),
                       Text(
-                        "Gomiti nagar Lucknow",
+                        userInfo.isLoadingLocation
+                            ? "Detecting..."
+                            : userInfo.getLocationOnly(),
                         style: TextConstants.smallTextStyle.copyWith(fontSize: 13),
                       ),
                     ],
                   ),
                 ],
               ),
-              _buildHeaderIcon(Icons.person_outline, null),
+              _buildHeaderIcon(Icons.notifications, null),
             ],
           ),
           const SizedBox(height: 80),

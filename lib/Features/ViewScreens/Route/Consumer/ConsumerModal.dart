@@ -4,6 +4,7 @@ class ConsumerModel {
   final String unit;
   final String quantity;
   final String customerName;
+  final String mobileNo;     // <-- REQUIRED FIELD
   final String address;
   final String time;
   final String status;
@@ -14,6 +15,7 @@ class ConsumerModel {
     required this.unit,
     required this.quantity,
     required this.customerName,
+    required this.mobileNo,     // <-- ADD HERE
     required this.address,
     required this.time,
     required this.status,
@@ -35,6 +37,7 @@ class ConsumerModel {
       unit: json["unit"] ?? "unit",
       quantity: (json["delivery_qty"] ?? "0").toString(),
       customerName: json["customer_name"] ?? "Unknown",
+      mobileNo: json["mobile_no"] ?? "",      // <-- MAPPED HERE
       address: json["address"] ?? "No address",
       time: json["time"] ?? "Not specified",
       status: json["delivered_status"] ?? "Pending",

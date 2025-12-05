@@ -15,6 +15,13 @@ class AppColors {
   static const Color advanceColor = Color(0xFF3372fd);
   static const Color advanceboxColor = Color(0xFF474bf8);
   static const Color primaryGreen = Color(0xFF01b847);
+  // --- Constants ---
+  static const Color primaryOrange = Color(0xFFFF9800);
+  static const Color lightCardYellow = Color(0xFFFFFBE5);
+  static const Color lightCardGreen = Color(0xFFE8F5E9);
+  static const Color lightCardPurple = Color(0xFFF3E5F5);
+  static const Color lightCardBlue = Color(0xFFE3F2FD);
+  static const Color darkTextColor = Color(0xFF333333);
 
 
 }

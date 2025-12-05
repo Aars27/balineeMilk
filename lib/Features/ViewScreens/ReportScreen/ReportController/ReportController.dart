@@ -16,6 +16,29 @@ class ReportController with ChangeNotifier {
   List<PaymentDistributionData> get paymentDistribution => _paymentDistribution;
   String get selectedTab => _selectedTab;
 
+  List<ShiftItem> shiftDetails = [
+    ShiftItem(title: "Morning Shift", amount: 12500),
+    ShiftItem(title: "Evening Shift", amount: 22800),
+  ]; // or just []
+
+
+  // ✅ ADD MILK DISTRIBUTION DATA
+  // ✅ CREATE SEPARATE DATA FOR MILK DISTRIBUTION
+  final List<MilkDistributionData> milkData = [
+    MilkDistributionData(
+      category: 'Distributed',
+      liters: 425,
+      color: AppColors.primaryGreen,
+    ),
+    MilkDistributionData(
+      category: 'Returned',
+      liters: 75,
+      color: Colors.orange,
+    ),
+  ];
+  List<MilkDistributionData> get milkDistribution => milkData;
+
+
   ReportController() {
     fetchReportData();
   }
@@ -49,7 +72,7 @@ class ReportController with ChangeNotifier {
   void setSelectedTab(String tab) {
     _selectedTab = tab;
     // In a real app, you would refetch data based on the selected tab here
-    fetchReportData(); // Re-fetch or update data based on tab
+    // fetchReportData(); // Re-fetch or update data based on tab
     notifyListeners();
   }
 }

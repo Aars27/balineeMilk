@@ -1,47 +1,94 @@
-// lib/models/location_model.dart
+// lib/Providers/LocationProvider.dart
+import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:geocoding/geocoding.dart'; // Often used with geolocator
+import 'package:geocoding/geocoding.dart';
 
-class LocationModel {
-  String currentAddress = 'Fetching location...';
+class LocationProvider with ChangeNotifier {
+  Position? _currentPosition;
+  String _currentAddress = "Detecting location...";
+  bool _isLoading = false;
 
-  Future<Position> getCurrentLocation() async {
-    bool serviceEnabled;
-    LocationPermission permission;
+  Position? get currentPosition => _currentPosition;
+  String get currentAddress => _currentAddress;
+  bool get isLoading => _isLoading;
 
-    // Test if location services are enabled.
-    serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      return Future.error('Location services are disabled.');
-    }
+  // ✅ Location fetch karo
+  Future<void> fetchLocation() async {
+    _isLoading = true;
+    notifyListeners();
 
-    permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        return Future.error('Location permissions are denied.');
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        _currentAddress = "Location services disabled";
+        _isLoading = false;
+        notifyListeners();
+        return;
       }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          _currentAddress = "Location permission denied";
+          _isLoading = false;
+          notifyListeners();
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        _currentAddress = "Location permission permanently denied";
+        _isLoading = false;
+        notifyListeners();
+        return;
+      }
+
+      _currentPosition = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      // ✅ Address fetch karo
+      if (_currentPosition != null) {
+        _currentAddress = await _getAddressFromLatLng(
+          _currentPosition!.latitude,
+          _currentPosition!.longitude,
+        );
+      }
+    } catch (e) {
+      print("❌ Location Error: $e");
+      _currentAddress = "Location unavailable";
     }
 
-    if (permission == LocationPermission.deniedForever) {
-      return Future.error('Location permissions are permanently denied, we cannot request permissions.');
-    }
-
-    // When permissions are granted, return the current position.
-    return await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+    _isLoading = false;
+    notifyListeners();
   }
 
-  Future<String> getAddressFromLatLng(double latitude, double longitude) async {
+  // ✅ Reverse Geocoding
+  Future<String> _getAddressFromLatLng(double lat, double lng) async {
     try {
-      // Use geocoding package to convert coordinates to an address
-      List<Placemark> placemarks = await placemarkFromCoordinates(latitude, longitude);
-      Placemark place = placemarks[0];
+      List<Placemark> placemarks = await placemarkFromCoordinates(lat, lng);
 
-      // Construct a simple address string
-      return "${place.street}, ${place.subLocality}, ${place.locality}, ${place.postalCode}";
+      if (placemarks.isNotEmpty) {
+        Placemark place = placemarks[0];
+        String address = '';
+
+        if (place.subLocality != null && place.subLocality!.isNotEmpty) {
+          address += '${place.subLocality}, ';
+        } else if (place.thoroughfare != null && place.thoroughfare!.isNotEmpty) {
+          address += '${place.thoroughfare}, ';
+        }
+
+        if (place.locality != null && place.locality!.isNotEmpty) {
+          address += place.locality!;
+        }
+
+        return address.isNotEmpty ? address : "Lucknow, UP";
+      }
     } catch (e) {
-      print(e);
-      return "Address not found";
+      print("❌ Geocoding Error: $e");
     }
+
+    return "Location detected";
   }
 }

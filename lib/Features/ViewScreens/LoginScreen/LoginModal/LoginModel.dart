@@ -1,10 +1,17 @@
 // lib/Models/login_model.dart
 
 class LoginModel {
-  // Data properties
-  String username = '';
-  String password = '';
-  bool rememberMe = false;
+  final String username;
+  final String password;
+  final bool rememberMe;
+
+
+  LoginModel({
+    required this.username,
+    required this.password,
+    required this.rememberMe,
+  });
+
 
   // Simple business logic (e.g., local validation checks)
   bool validateUsername(String value) {
@@ -16,4 +23,8 @@ class LoginModel {
 
   }
 }
+
+
+
+
 

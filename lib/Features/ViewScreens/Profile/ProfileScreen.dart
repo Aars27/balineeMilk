@@ -2,23 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../../Components/Providers/UserInfoProviders.dart';
+import '../../../Components/Savetoken/SaveToken.dart';
+import '../../../Core/Constant/text_constants.dart';
 import 'EditProfile/EditProfilepage.dart';
 import 'Help&Support/HelpSupport.dart';
 import 'ProfileController/ProfileController.dart';
 
-
-
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
 
-  // --- Constants ---
   static const Color primaryOrange = Color(0xFFFF9800);
   static const Color lightCardYellow = Color(0xFFFFFBE5);
   static const Color lightCardGreen = Color(0xFFE8F5E9);
   static const Color lightCardPurple = Color(0xFFF3E5F5);
   static const Color lightCardBlue = Color(0xFFE3F2FD);
   static const Color darkTextColor = Color(0xFF333333);
-  static const String waveImagePath = 'assets/vector.png'; // *** Ensure this path is correct ***
+  static const String waveImagePath = 'assets/vector.png';
   static const double headerHeight = 280.0;
 
   @override
@@ -27,8 +27,17 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   @override
+  void initState() {
+    super.initState();
+    // ✅ Load user info when screen opens
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final userInfoProvider = Provider.of<UserInfoProvider>(context, listen: false);
+      userInfoProvider.initialize();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Wrap with ChangeNotifierProvider to make it runnable in isolation
     return ChangeNotifierProvider(
       create: (context) => ProfileProvider(),
       child: Scaffold(
@@ -36,14 +45,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         body: SingleChildScrollView(
           child: Column(
             children: [
-              // 1. Header Section
               _buildHeader(context),
-              // 2. Stats Section
               _buildStatsSection(context),
-              // 3. Contact Information Section
               _buildSectionTitle("Contact Information"),
               _buildContactInfoSection(context),
-              // 4. Navigation Items
               _buildSectionTitle("Settings", showIcon: true),
               _buildNavigationItems(context),
               const SizedBox(height: 30),
@@ -54,43 +59,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // --- Widget Builders ---
   Widget _buildHeader(BuildContext context) {
     final provider = Provider.of<ProfileProvider>(context, listen: false);
     final partner = provider.partner;
 
-    // Calculate the top safe area padding once
+    //  Get User Info Provider
+    final userInfo = Provider.of<UserInfoProvider>(context);
+
     final topPadding = MediaQuery.of(context).padding.top;
 
     return SizedBox(
       height: ProfileScreen.headerHeight,
       width: double.infinity,
       child: Container(
-decoration: BoxDecoration(
-  color: Colors.orange,
-      borderRadius: BorderRadius.only(
-    bottomRight: Radius.circular(20),
-        bottomLeft: Radius.circular(20)
-)
-
-),
-
+        decoration: BoxDecoration(
+          color: Colors.orange,
+          borderRadius: BorderRadius.only(
+            bottomRight: Radius.circular(20),
+            bottomLeft: Radius.circular(20),
+          ),
+        ),
         child: Stack(
           alignment: Alignment.topCenter,
           children: [
-            // 1. IMAGE BACKGROUND LAYER (The orange wave)
+            // Background Wave
             Positioned.fill(
-              bottom: ProfileScreen.headerHeight / 3, // Position image within the top two-thirds
+              bottom: ProfileScreen.headerHeight / 3,
               child: Image.asset(
                 ProfileScreen.waveImagePath,
                 fit: BoxFit.fill,
-                // color: ProfileScreen.primaryOrange, // Set the color to primaryOrange if the image is a generic shape
               ),
             ),
 
-            // 2. Top Bar Content (Greeting, Icons)
+            // ✅ Top Bar with Dynamic User Info
             Positioned(
-              top: 15, // Start below the status bar
+              top: 20,
               left: 0,
               right: 0,
               child: Padding(
@@ -98,47 +101,91 @@ decoration: BoxDecoration(
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text("Rahul Sharma!", style: TextStyle(color: Colors.black, fontSize: 20)),
-                        Row(
-                          children: [
-                            Icon(Icons.location_on,color: Colors.red,),
-                            Text("Gomti Nagar,Lucknow", style: TextStyle(
-                                color: Colors.black, fontSize: 12)),
-                          ],
-                        ),
-                      ],
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          //  Dynamic User Name
+                          Text(
+                            userInfo.isLoadingUser
+                                ? "Loading..."
+                                : "${userInfo.getFullName()}!",
+                            style: TextConstants.smallTextStyle.copyWith(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Row(
+                            children: [
+                              Icon(Icons.location_on, color: Colors.red, size: 16),
+                              SizedBox(width: 4),
+                              // Dynamic Location
+                              Expanded(
+                                child: Text(
+                                  userInfo.isLoadingLocation
+                                      ? "Detecting..."
+                                      : userInfo.getLocationOnly(),
+                                  style: TextStyle(
+                                    color: Colors.black87,
+                                    fontSize: 12,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                    const Icon(Icons.notifications_none_sharp, color: Colors.black, size: 20),
+                    const Icon(Icons.notifications_none_sharp, color: Colors.black, size: 24),
                   ],
                 ),
               ),
             ),
 
-            // 3. Profile Picture & Details (Centered relative to the top section)
+            // Profile Picture & Details
             Positioned(
-              top: topPadding + 80, // Adjust this value to position the profile details
+              top: topPadding + 80,
               child: Column(
                 children: [
                   CircleAvatar(
-                    radius: 35, // Slightly larger radius
+                    radius: 35,
                     backgroundColor: Colors.white,
-                    child: Text(partner.name.substring(0, 2),
-                        style: const TextStyle(fontSize: 22, color: ProfileScreen.primaryOrange, fontWeight: FontWeight.bold)),
+                    child: Text(
+                      _getInitials(userInfo.getFullName()),
+                      style: const TextStyle(
+                        fontSize: 22,
+                        color: ProfileScreen.primaryOrange,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 10),
-                  Text(partner.name,
-                      style: const TextStyle(
-                          color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                  Text(partner.partnerId,
-                      style: TextStyle(
-                          color: Colors.white.withOpacity(0.8), fontSize: 14)),
+                  Text(
+                    userInfo.getFullName(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    partner.partnerId,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.8),
+                      fontSize: 14,
+                    ),
+                  ),
                   const SizedBox(height: 4),
                   const Chip(
-                    label: Text("Active Partner",
-                        style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+                    label: Text(
+                      "Active Partner",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     backgroundColor: Colors.green,
                     padding: EdgeInsets.symmetric(horizontal: 6, vertical: 0),
                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -152,36 +199,62 @@ decoration: BoxDecoration(
     );
   }
 
+  //  Helper: Get Initials from Name
+  String _getInitials(String name) {
+    if (name.isEmpty) return "GU";
+    final parts = name.trim().split(' ');
+    if (parts.length == 1) {
+      return parts[0].substring(0, 2).toUpperCase();
+    }
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+
   Widget _buildStatsSection(BuildContext context) {
     final provider = Provider.of<ProfileProvider>(context, listen: false);
     final partner = provider.partner;
 
-    // Use Transform.translate to lift the stat cards over the header's curve
     return Transform.translate(
       offset: const Offset(0, -50),
       child: Padding(
-        padding: const EdgeInsets.only(left: 20,right: 20,top: 60),
+        padding: const EdgeInsets.only(left: 20, right: 20, top: 60),
         child: Row(
           children: [
-            _buildStatCard("Total Deliveries", partner.totalDeliveries.toString(), ProfileScreen.lightCardYellow, ProfileScreen.primaryOrange),
+            _buildStatCard(
+              "Total Deliveries",
+              partner.totalDeliveries.toString(),
+              ProfileScreen.lightCardYellow,
+              ProfileScreen.primaryOrange,
+            ),
             const SizedBox(width: 15),
-            _buildStatCard("Rating", partner.rating.toStringAsFixed(1), ProfileScreen.lightCardGreen, const Color(0xFF4CAF50), isRating: true),
+            _buildStatCard(
+              "Rating",
+              partner.rating.toStringAsFixed(1),
+              ProfileScreen.lightCardGreen,
+              const Color(0xFF4CAF50),
+              isRating: true,
+            ),
           ],
         ),
       ),
     );
   }
 
-  // ... (Keep _buildStatCard as is)
   Widget _buildStatCard(String title, String value, Color bgColor, Color primaryColor, {bool isRating = false}) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(15), // Increased padding
+        padding: const EdgeInsets.all(15),
         decoration: BoxDecoration(
           color: bgColor,
           borderRadius: BorderRadius.circular(15),
           border: Border.all(color: Colors.grey.shade100),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), spreadRadius: 0, blurRadius: 10, offset: const Offset(0, 4))],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              spreadRadius: 0,
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Column(
           children: [
@@ -191,7 +264,7 @@ decoration: BoxDecoration(
                 Text(
                   value,
                   style: TextStyle(
-                    fontSize: 28, // Slightly larger font
+                    fontSize: 28,
                     fontWeight: FontWeight.bold,
                     color: primaryColor,
                   ),
@@ -200,27 +273,13 @@ decoration: BoxDecoration(
               ],
             ),
             const SizedBox(height: 5),
-            Text(title, style: TextStyle(color: Colors.grey.shade600, fontSize: 13, fontWeight: FontWeight.w500)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ... (Keep _buildSectionTitle as is, but added to the optimized code for completeness)
-  Widget _buildSectionTitle(String title, {bool showIcon = false}) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 20, right: 20, top: 10, bottom: 10),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Row(
-          children: [
-            if (showIcon)
-              const Icon(Icons.settings, color: ProfileScreen.darkTextColor, size: 20),
-            if (showIcon) const SizedBox(width: 8), // Increased space
             Text(
               title,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: ProfileScreen.darkTextColor),
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ],
         ),
@@ -228,7 +287,29 @@ decoration: BoxDecoration(
     );
   }
 
-  // ... (Keep _buildContactInfoSection as is)
+  Widget _buildSectionTitle(String title, {bool showIcon = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 20, right: 20, bottom: 10),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Row(
+          children: [
+            if (showIcon) const Icon(Icons.settings, color: ProfileScreen.darkTextColor, size: 20),
+            if (showIcon) const SizedBox(width: 8),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: ProfileScreen.darkTextColor,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildContactInfoSection(BuildContext context) {
     final provider = Provider.of<ProfileProvider>(context, listen: false);
     final partner = provider.partner;
@@ -237,21 +318,49 @@ decoration: BoxDecoration(
       padding: const EdgeInsets.symmetric(horizontal: 20.0),
       child: Column(
         children: [
-          _buildInfoTile(Icons.phone, "Mobile Number", partner.mobileNumber, ProfileScreen.lightCardGreen.withOpacity(0.7), const Color(0xFF4CAF50)),
-          _buildInfoTile(Icons.email, "Email Address", partner.emailAddress, ProfileScreen.primaryOrange.withOpacity(0.1), ProfileScreen.primaryOrange),
-          _buildInfoTile(Icons.location_on, "Assigned Zone", partner.assignedZone, ProfileScreen.lightCardPurple, const Color(0xFF9C27B0)),
-          _buildInfoTile(Icons.calendar_today, "Joined On", DateFormat.yMMMMd().format(partner.joinedDate), ProfileScreen.lightCardBlue, const Color(0xFF2196F3), isLast: true), // Added 'd' for day
+          _buildInfoTile(
+            Icons.phone,
+            "Mobile Number",
+            partner.mobileNumber,
+            ProfileScreen.lightCardGreen.withOpacity(0.7),
+            const Color(0xFF4CAF50),
+          ),
+          _buildInfoTile(
+            Icons.email,
+            "Email Address",
+            partner.emailAddress,
+            ProfileScreen.primaryOrange.withOpacity(0.1),
+            ProfileScreen.primaryOrange,
+          ),
+          _buildInfoTile(
+            Icons.location_on,
+            "Assigned Zone",
+            partner.assignedZone,
+            ProfileScreen.lightCardPurple,
+            const Color(0xFF9C27B0),
+          ),
+          _buildInfoTile(
+            Icons.calendar_today,
+            "Joined On",
+            DateFormat.yMMMMd().format(partner.joinedDate),
+            ProfileScreen.lightCardBlue,
+            const Color(0xFF2196F3),
+            isLast: true,
+          ),
         ],
       ),
     );
   }
 
-  // ... (Keep _buildInfoTile as is)
   Widget _buildInfoTile(IconData icon, String title, String subtitle, Color bgColor, Color iconColor, {bool isLast = false}) {
     return Container(
       decoration: isLast
           ? null
-          : BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.shade200, width: 1))),
+          : BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: Colors.grey.shade200, width: 1),
+        ),
+      ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         leading: Container(
@@ -263,8 +372,14 @@ decoration: BoxDecoration(
           child: Icon(icon, color: iconColor, size: 24),
         ),
         title: Text(title, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-        subtitle: Text(subtitle, style: const TextStyle(fontSize: 16, color: ProfileScreen.darkTextColor, fontWeight: FontWeight.w500)),
-        trailing: const Icon(Icons.keyboard_arrow_right, color: Colors.transparent),
+        subtitle: Text(
+          subtitle,
+          style: const TextStyle(
+            fontSize: 16,
+            color: ProfileScreen.darkTextColor,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
       ),
     );
   }
@@ -274,21 +389,19 @@ decoration: BoxDecoration(
       padding: const EdgeInsets.symmetric(horizontal: 20.0),
       child: Column(
         children: [
-          // 1. Edit Profile - Added onTap for navigation
           _buildNavItem(
             Icons.edit,
             "Edit Profile",
             ProfileScreen.primaryOrange.withOpacity(0.1),
             ProfileScreen.primaryOrange,
             onTap: () {
-              Navigator.pop(context);
+              // Navigate to Edit Profile
               // Navigator.push(
               //   context,
-              //   MaterialPageRoute(builder: (context) => const Editprofilepage()),
+              //   MaterialPageRoute(builder: (context) => Ed()),
               // );
             },
           ),
-          // 2. Help & Support - Added onTap for navigation
           _buildNavItem(
             Icons.help_outline,
             "Help & Support",
@@ -301,33 +414,34 @@ decoration: BoxDecoration(
               );
             },
           ),
-          // 3. Logout
           _buildNavItem(
-              Icons.logout,
-              "Logout",
-              const Color(0xFFFFEBEE),
-              const Color(0xFFE53935),
-              isLogout: true,
-              isLast: true,
-              onTap: () {
-                // The logout logic is simple: call the provider method
-                Provider.of<ProfileProvider>(context, listen: false).logout();
-                // Add actual navigation (e.g., to login screen) here
-                // Navigator.of(context).pushReplacementNamed('/login');
-              }
+            Icons.logout,
+            "Logout",
+            const Color(0xFFFFEBEE),
+            const Color(0xFFE53935),
+            isLogout: true,
+            isLast: true,
+            onTap: () {
+              Provider.of<ProfileProvider>(context, listen: false).logout(context);
+              // ✅ Clear user info on logout
+              Provider.of<UserInfoProvider>(context, listen: false).clearData();
+            },
           ),
         ],
       ),
     );
   }
 
-  // ... (Keep _buildNavItem as is)
   Widget _buildNavItem(IconData icon, String title, Color bgColor, Color iconColor, {bool isLogout = false, bool isLast = false, VoidCallback? onTap}) {
     final textColor = isLogout ? iconColor : ProfileScreen.darkTextColor;
     return Container(
       decoration: isLast
           ? null
-          : BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.shade200, width: 1))),
+          : BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: Colors.grey.shade200, width: 1),
+        ),
+      ),
       child: ListTile(
         onTap: onTap,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -340,7 +454,10 @@ decoration: BoxDecoration(
           child: Icon(icon, color: iconColor, size: 24),
         ),
         title: Text(title, style: TextStyle(fontSize: 16, color: textColor)),
-        trailing: Icon(Icons.keyboard_arrow_right, color: isLogout ? Colors.transparent : Colors.grey.shade400),
+        trailing: Icon(
+          Icons.keyboard_arrow_right,
+          color: isLogout ? Colors.transparent : Colors.grey.shade400,
+        ),
       ),
     );
   }

@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import '../../../Components/Providers/Splash_provider.dart';
+import '../../../Components/Location/Location.dart';
+import 'SplashController/Splash_provider.dart';
+import '../../../Components/Savetoken/SaveToken.dart';
+import '../../../Core/Constant/ApiServices.dart';
 import '../../../Core/Constant/app_colors.dart';
 import '../../../Core/Constant/text_constants.dart';
-import 'SplashController/SplashControllers.dart';
-
-
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -15,26 +16,53 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  // Assuming these are necessary for your app's logic (loading/navigation)
-  late SplashController _controller;
-
   @override
   void initState() {
     super.initState();
-    _controller = SplashController(context);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _controller.startLoading();
+      _initialize();  // ✅ Only one initialize function
     });
+  }
+
+  Future<void> _initialize() async {
+    final splashProvider = Provider.of<SplashProvider>(context, listen: false);
+    final locationProvider = Provider.of<LocationProvider>(context, listen: false);
+
+    try {
+      // ✅ API config fetch
+      final api = ApiService();
+      final data = await api.getData("config");
+      splashProvider.setApiResponse(data);
+
+      // ✅ Location fetch (parallel - non-blocking)
+      locationProvider.fetchLocation();
+
+    } catch (e) {
+      splashProvider.setError(e.toString());
+    }
+
+    // ✅ Wait 2 seconds
+    await Future.delayed(const Duration(seconds: 2));
+    splashProvider.updateProgress(1.0);
+
+    if (!mounted) return;
+
+    // ✅ Check login status
+    final isLoggedIn = await TokenHelper().isLoggedIn();
+
+    if (isLoggedIn) {
+      context.go('/bottombar');  // ✅ Dashboard
+    } else {
+      context.go('/loginpage');  // ✅ Login
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // We will use MediaQuery to get the screen height for responsive positioning
     final screenHeight = MediaQuery.of(context).size.height;
-    final splashProvider = Provider.of<SplashProvider>(context); // Kept if used elsewhere
 
     return Scaffold(
-      backgroundColor: AppColors.primary, // The main background color is yellow
+      backgroundColor: AppColors.primary,
       body: Stack(
         children: [
           Column(
@@ -49,54 +77,49 @@ class _SplashScreenState extends State<SplashScreen> {
 
           Column(
             children: [
-              // Use a Stack for the background image and the logo
+              // Wave background + Logo
               SizedBox(
-                height: screenHeight * 0.45, // Same height as the top white container
+                height: screenHeight * 0.45,
                 child: Stack(
                   alignment: Alignment.topCenter,
                   children: [
                     Positioned.fill(
                       child: Image.asset(
-                        'assets/splash.png', // Assuming 'splash.png' contains the wave
-                        // fit: BoxFit.cover,
+                        'assets/splash.png',
                         alignment: Alignment.topCenter,
                       ),
                     ),
-
-                    // Logo positioned correctly
                     Positioned(
-                      top: 40, // Adjust this value to match the image precisely
+                      top: 40,
                       child: Image.asset(
-                        'assets/milk.gif',// Balinee logo
-                        width: 120, // Adjusted for better visibility
+                        'assets/milk.gif',
+                        width: 120,
                       ),
                     ),
                   ],
                 ),
               ),
 
-              // --- 2. Delivery Person Image ---
-              // The image is placed visually within the yellow section
+              // Delivery person animation
               Image.asset(
-                'assets/loader.gif'
-                    , // You need a new asset for the scooter/person
+                'assets/loader.gif',
                 width: 200,
                 fit: BoxFit.contain,
               ),
 
               const SizedBox(height: 50),
 
-              // --- 3. Text and Indicator Section ---
+              // Title
               Text(
                 TextConstants.splashTitle,
                 style: TextConstants.headingStyle.copyWith(
                   color: Colors.black,
-                  fontSize: 28, // Increase font size to match the image
+                  fontSize: 28,
                 ),
               ),
               const SizedBox(height: 15),
 
-              // Page indicator (Solid for active, outline for others)
+              // Page indicator dots
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(
@@ -108,7 +131,9 @@ class _SplashScreenState extends State<SplashScreen> {
                       height: 8,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: index == 0 ? Colors.white : Colors.white70.withOpacity(0.5),
+                        color: index == 0
+                            ? Colors.white
+                            : Colors.white70.withOpacity(0.5),
                       ),
                     ),
                   ),
@@ -116,39 +141,35 @@ class _SplashScreenState extends State<SplashScreen> {
               ),
 
               const SizedBox(height: 10),
-              // const Spacer(),
 
-              // --- 4. Footer (Tagline and GensTreeAi Logo) ---
+              // Footer
               Padding(
                 padding: const EdgeInsets.only(bottom: 30),
                 child: Column(
                   children: [
-                     Text(
-                      "Delivering Freshness, every day", // Matches the image text
+                    Text(
+                      "Delivering Freshness, every day",
                       style: TextConstants.bodyStyle.copyWith(
                         color: Colors.black,
-                        fontSize: 16, // Adjust font size
+                        fontSize: 16,
                       ),
                     ),
                     const SizedBox(height: 10),
-                    // Replace your old GensTree logo code
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Image.asset(
                           'assets/genslogo.png',
-                          height: 16, // Adjusted size
+                          height: 16,
                         ),
                         const SizedBox(width: 5),
                       ],
                     ),
-
                   ],
                 ),
               ),
             ],
           ),
-
         ],
       ),
     );

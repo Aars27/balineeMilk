@@ -27,3 +27,29 @@ class PaymentDistributionData {
     required this.color,
   });
 }
+
+
+class ShiftItem {
+  final String title;
+  final double amount;
+
+  ShiftItem({
+    required this.title,
+    required this.amount,
+  });
+}
+
+// Add this to ReportModal/ReportModel.dart or at top of ReportScreen.dart
+class MilkDistributionData {
+  final String category;
+  final double liters;
+  final Color color;
+
+  MilkDistributionData({
+    required this.category,
+    required this.liters,
+    required this.color,
+  });
+}
+
+

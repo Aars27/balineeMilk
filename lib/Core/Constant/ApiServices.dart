@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../Features/ViewScreens/Route/Distribution/DistributionModal.dart';
 
 class ApiService {
   static const String baseUrl = "https://balinee.pmmsapp.com/api/";
@@ -80,4 +81,85 @@ class ApiService {
       throw Exception("Login error: $e");
     }
   }
+
+
+  Future<List<DistributionItem>> fetchDistribution(String token) async {
+    const url = "https://balinee.pmmsapp.com/api/distribution";
+
+    final response = await _dio.get(
+      url,
+      options: Options(
+        headers: {
+          "Authorization": "Bearer $token",
+          "Accept": "application/json",
+        },
+      ),
+    );
+
+    if (response.statusCode == 200) {
+      List list = response.data["data"];
+      return list.map((e) => DistributionItem.fromJson(e)).toList();
+    }
+    return [];
+  }
+
+  // POST: Intake milk
+  Future<String> recordIntake({
+    required String token,
+    required int productId,
+    required String qty,
+    required String challan,
+  }) async {
+    const url = "https://balinee.pmmsapp.com/api/milk-distribution";
+
+    final response = await _dio.post(
+      url,
+      data: {
+        "type": "intake",
+        "product_id": productId,
+        "provided_qty": qty,
+        "challan_no": challan,
+      },
+      options: Options(
+        headers: {
+          "Authorization": "Bearer $token",
+        },
+      ),
+    );
+
+    return response.data["message"] ?? "Success";
+  }
+
+  // POST: Return milk
+  Future<String> recordReturn({
+    required String token,
+    required int productId,
+    required String qty,
+  }) async {
+    const url = "https://balinee.pmmsapp.com/api/milk-distribution";
+
+    final response = await _dio.post(
+      url,
+      data: {
+        "type": "return",
+        "product_id": productId,
+        "return_qty": qty,
+      },
+      options: Options(
+        headers: {
+          "Authorization": "Bearer $token",
+        },
+      ),
+    );
+
+    return response.data["message"] ?? "Success";
+  }
+
+
+
+
+
 }
+
+
+

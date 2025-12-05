@@ -1,134 +1,96 @@
-// // lib/Controllers/dashboard_controller.dart
-//
-// import 'package:flutter/material.dart';
-//
-// // Assuming AppColors is available
-// import '../../../../Core/Constant/app_colors.dart';
-// import '../DashBoardModal/dashboardmodel.dart';
-//
-// class DashboardController with ChangeNotifier {
-//   bool _isLoading = true;
-//   MilkData? _milkData;
-//   List<SalesData> _metrics = [];
-//   DeliverySummary? _summary;
-//
-//   bool get isLoading => _isLoading;
-//   MilkData? get milkData => _milkData;
-//   List<SalesData> get metrics => _metrics;
-//   DeliverySummary? get summary => _summary;
-//
-//   DashboardController() {
-//     fetchDashboardData();
-//   }
-//
-//   Future<void> fetchDashboardData() async {
-//     _isLoading = true;
-//     notifyListeners();
-//
-//     // Simulate API delay
-//     await Future.delayed(const Duration(seconds: 1));
-//
-//     // Hardcoded data to match the image exactly
-//     _milkData = MilkData(token: 500, delivered: 425, returned: 75);
-//
-//     _metrics = [
-//       SalesData(title: 'Total Sales', amount: '₹12,750', progress: 0.8, progressColor: Colors.amber),
-//       SalesData(title: 'Cash in Hand', amount: '₹7,500', progress: 0.65, progressColor: Colors.orange),
-//       SalesData(title: 'Online Payment', amount: '₹1,000', progress: 0.2, progressColor: Colors.deepOrange),
-//       SalesData(title: 'Pending Payments', amount: '₹4,250', progress: 0.7, progressColor: Colors.red),
-//     ];
-//
-//     _summary = DeliverySummary(totalConsumers: 95, delivered: 85, pending: 10);
-//
-//     _isLoading = false;
-//     notifyListeners();
-//   }
-// }
-//
-//
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
-
+import 'package:dio/dio.dart';
+import '../../../../Components/Savetoken/SaveToken.dart';
 import '../DashBoardModal/dashboardmodel.dart';
+
+
 
 class DashboardController with ChangeNotifier {
   bool isLoading = false;
-
   DashboardModel? dashboard;
+  String? errorMessage;
+
+  late Dio _dio;
 
   DashboardController() {
-    fetchDashboard();
+    _initializeDio();
+    Future.delayed(Duration.zero, () {
+      fetchDashboard();
+    });
+  }
+
+  Future<void> _initializeDio() async {
+    _dio = await TokenHelper().getDioClient();
   }
 
   Future<void> fetchDashboard() async {
-    isLoading = true;
-    notifyListeners();
+    print("🚀 Fetching dashboard...");
 
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    String? token = prefs.getString("api_token");
+    if (dashboard == null) {
+      isLoading = true;
+      notifyListeners();
+    }
 
     try {
-      final url = Uri.parse("https://balinee.pmmsapp.com/api/dashboard");
+      // Ensure Dio is initialized with latest token
+      _dio = await TokenHelper().getDioClient();
 
-      final res = await http.get(
-        url,
-        headers: {
-          "Authorization": "Bearer $token",
-          "Accept": "application/json",
-        },
-      );
+      final token = await TokenHelper().getToken();
 
-      final jsonData = json.decode(res.body);
-
-      if (jsonData["flag"] == true) {
-        dashboard = DashboardModel.fromJson(jsonData);
+      if (token == null || token.isEmpty) {
+        errorMessage = "Token not found. Please login again.";
+        isLoading = false;
+        notifyListeners();
+        return;
       }
 
+      print("🔑 Token: ${token.substring(0, 20)}...");
+      print("📡 Making API call...");
+
+      final response = await _dio.get('/dashboard');
+
+      print("📥 Response status: ${response.statusCode}");
+      print("📥 Response data: ${response.data}");
+
+      if (response.statusCode == 200) {
+        final jsonData = response.data;
+
+        if (jsonData["flag"] == true) {
+          dashboard = DashboardModel.fromJson(jsonData);
+          errorMessage = null;
+          print("✅ Dashboard loaded successfully");
+        } else {
+          errorMessage = jsonData["message"] ?? "Failed to load data";
+          print("❌ API returned flag=false");
+        }
+      }
+    } on DioException catch (e) {
+      print("❌ Dio error: ${e.type}");
+      print("❌ Message: ${e.message}");
+      print("❌ Response: ${e.response?.data}");
+
+      if (e.response?.statusCode == 401) {
+        errorMessage = "Session expired. Please login again.";
+        await TokenHelper().clearAuthData();
+      } else if (e.type == DioExceptionType.connectionTimeout) {
+        errorMessage = "Connection timeout. Please try again.";
+      } else if (e.type == DioExceptionType.receiveTimeout) {
+        errorMessage = "Request timeout. Please try again.";
+      } else {
+        errorMessage = "Network error: ${e.message}";
+      }
     } catch (e) {
-      print("Dashboard error: $e");
+      print("❌ Dashboard error: $e");
+      errorMessage = "Unexpected error occurred";
     }
 
     isLoading = false;
     notifyListeners();
+    print("🔄 UI Updated - isLoading: $isLoading, hasData: ${dashboard != null}");
+  }
+
+  Future<void> refresh() async {
+    dashboard = null;
+    await fetchDashboard();
   }
 }

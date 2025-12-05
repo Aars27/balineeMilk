@@ -1,7 +1,6 @@
 // lib/Providers/LoginProvider.dart
 
 import 'package:flutter/material.dart';
-import 'package:path/path.dart';
 
 class LoginProvider with ChangeNotifier {
   String _username = '';

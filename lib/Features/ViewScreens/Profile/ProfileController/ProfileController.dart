@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../Components/Savetoken/SaveToken.dart';
 import '../ProfileModel/ProfileModal.dart';
 
 class ProfileProvider with ChangeNotifier {
@@ -43,8 +45,11 @@ class ProfileProvider with ChangeNotifier {
   }
 
   // Example for a mock action
-  void logout() {
-    // Implement logout logic (clear tokens, navigate to login)
-    print("User logged out!");
+  Future<void> logout(BuildContext context) async {
+    await TokenHelper().clearAuthData();
+
+    if (context.mounted) {
+      context.go('/loginpage');
+    }
   }
 }

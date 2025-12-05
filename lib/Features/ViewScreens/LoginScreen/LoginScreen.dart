@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:provider/provider.dart';
-import '../../../Components/Providers/LoginProviders.dart';
 import '../../../Core/Constant/app_colors.dart';
 import '../../../Core/Constant/text_constants.dart';
 import 'loginController/LoginController.dart';
@@ -74,6 +73,7 @@ class LoginScreen extends StatelessWidget {
                               'Password',
                               style: TextConstants.smallTextStyle.copyWith(fontSize: 16),
                             ),
+
                             const SizedBox(height: 8),
 
                             Consumer<LoginController>(

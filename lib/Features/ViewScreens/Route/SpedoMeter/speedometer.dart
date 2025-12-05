@@ -3,10 +3,13 @@ import 'dart:io';
 import 'package:balineemilk/Core/Constant/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:pinput/pinput.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../../../Components/Savetoken/SaveToken.dart';
 
 
 class SpeedometerDialog extends StatefulWidget {
@@ -46,14 +49,14 @@ class _SpeedometerDialogState extends State<SpeedometerDialog> {
   Future<void> upload(String type) async {
     setState(() => loading = true);
 
-    // Load token from SharedPreferences
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    String? token = prefs.getString("api_token");   // <-- Correct key
+    // Load token through TokenHelper
+    String? token = await TokenHelper().getToken();  // <-- Updated
 
     if (token == null || token.isEmpty) {
       setState(() => loading = false);
+      context.go('/loginpage');
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Token missing. Please login again")),
+        const SnackBar(content: Text(" Please login again")),
       );
       return;
     }
@@ -63,13 +66,9 @@ class _SpeedometerDialogState extends State<SpeedometerDialog> {
       Uri.parse("https://balinee.pmmsapp.com/api/upload-speedometer"),
     );
 
-    // REQUIRED AUTH HEADER
+    // Authorization Header
     req.headers["Authorization"] = "Bearer $token";
-
-    req.fields['meter_no'] = type == "start"
-        ? startMeter.text
-        : endMeter.text;
-
+    req.fields['meter_no'] = type == "start" ? startMeter.text : endMeter.text;
     req.fields['type'] = type;
 
     req.files.add(await http.MultipartFile.fromPath(
@@ -78,29 +77,26 @@ class _SpeedometerDialogState extends State<SpeedometerDialog> {
     ));
 
     var res = await req.send();
-
     var body = await res.stream.bytesToString();
 
     final decode = json.decode(body);
-    final msg = decode["message"]?? "Success";
-
+    final msg = decode["message"] ?? "Success";
 
     print(body);
 
     setState(() => loading = false);
 
     if (type == "start") {
-      setState(() => isStartDone = true); // show END section
+      setState(() => isStartDone = true);
     } else {
-      Navigator.pop(context); // close dialog after END
+      Navigator.pop(context);
     }
 
-    Fluttertoast.showToast(msg: msg,
-    backgroundColor: Colors.green,
-      textColor: Colors.white
+    Fluttertoast.showToast(
+      msg: msg,
+      backgroundColor: Colors.green,
+      textColor: Colors.white,
     );
-
-
   }
 
 

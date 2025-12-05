@@ -1,14 +1,25 @@
+// lib/Features/ViewScreens/Route/MainRoutesView/Routes.dart
+import 'package:dio/dio.dart';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+
 import '../../../../Components/GoogleMap/GoogleMap.dart';
+import '../../../../Components/Providers/UserInfoProviders.dart';
+import '../../../../Components/Savetoken/SaveToken.dart';
 import '../../../../Core/Constant/app_colors.dart';
 import '../../../../Core/Constant/text_constants.dart';
+
 import '../Consumer/ConsumerScreen.dart';
 import '../Consumer/Consumer_provider.dart';
+import '../Distribution/DistributionScreen.dart';
 import '../SpedoMeter/speedometer.dart';
+
 import 'Controllers/RoutesController.dart';
 import 'Model/RoutesModel.dart';
+
 
 class RouteTrackingScreen extends StatefulWidget {
   const RouteTrackingScreen({super.key});
@@ -20,64 +31,75 @@ class RouteTrackingScreen extends StatefulWidget {
 class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
   String _activeView = 'Map View';
 
+  Future<void> _loadConsumersIfNeeded() async {
+    final token = await TokenHelper().getToken();   // <-- FIXED
+
+    if (!mounted) return;
+
+    final provider = Provider.of<ConsumerProvider>(context, listen: false);
+
+    if (provider.consumers.isEmpty && token != null) {
+      await provider.loadConsumers(token);
+    }
+  }
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.cardBackground,
       body: Consumer<RouteController>(
         builder: (context, controller, child) {
-          if (controller.isLoading || controller.routeDetails == null) {
+          if (controller.isLoading || controller.mapViewResponse == null) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final details = controller.routeDetails!;
+          final summary = controller.mapViewResponse!.summary;
 
           return Stack(
             children: [
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: Image.asset(
-                  'assets/vector.png',
-                  fit: BoxFit.cover,
-                  height: 200,
-                ),
-              ),
+              _backgroundImage(),
 
               CustomScrollView(
                 slivers: [
                   SliverList(
-                    delegate:
-                    SliverChildListDelegate(
+                    delegate: SliverChildListDelegate(
                       [
-                        _buildHeader(context),
-                        const SizedBox(height: 80),
+                        _buildHeader(controller),
+                        const SizedBox(height: 60),
 
-                        _buildRouteTrackingInfo(context),
+                        _buildRouteTrackingCard(summary),
                         const SizedBox(height: 15),
 
-                        // SHOW ONLY THE SELECTED SECTION
-                        if (_activeView == 'Map View') ...[
-                          _buildMapView(),
+                        _buildTabs(),
+                        const SizedBox(height: 15),
+
+                        // ---------------- MAP VIEW ----------------
+                        if (_activeView == "Map View") ...[
+                          _buildMapView(controller),
                           const SizedBox(height: 15),
-                          _buildRouteProgressCard(context, details),
-                          const SizedBox(height: 20),
-                          _buildRecentDeliveries(context, controller.recentDeliveries),
+                          _buildRouteProgress(summary),
+                          const SizedBox(height: 15),
+                          _buildRecentDeliveries(controller.mapViewResponse!.mapData)
                         ],
 
-                        if (_activeView == 'Consumers') ...[
-                          const ConsumerScreenWidget(),
-                        ],
+                        // ---------------- CONSUMERS ----------------
+                        if (_activeView == "Consumers")
+                          SizedBox(
+                            height: MediaQuery.of(context).size.height * 0.75,
+                            child: const ConsumerScreenWidget(),
+                          ),
 
-                        if (_activeView == 'Distribution') ...[
-                          _buildDistributionWidget(),
-                        ],
+                        // ---------------- DISTRIBUTION ----------------
+                        if (_activeView == "Distribution")
+                          SizedBox(
+                            height: MediaQuery.of(context).size.height * 0.75,
+                            child: MilkDistributionScreen(),
+                          ),
 
                         const SizedBox(height: 80),
                       ],
-                    )
-
+                    ),
                   ),
                 ],
               ),
@@ -88,331 +110,169 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
     );
   }
 
-  // -------------------- NEW METHOD FOR SWITCHING VIEWS --------------------
-
-  Widget _buildActiveView(RouteDetails details, List<Delivery> deliveries) {
-    if (_activeView == 'Map View') {
-      return Column(
-        children: [
-          _buildMapView(),
-          const SizedBox(height: 15),
-          _buildRouteProgressCard(context, details),
-          const SizedBox(height: 20),
-          _buildRecentDeliveries(context, deliveries),
-        ],
-      );
-    } else if (_activeView == 'Consumers') {
-      return const ConsumerScreenWidget();
-
-
-
-    } else if (_activeView == 'Distribution') {
-      return _buildDistributionWidget();
-    }
-    return Container();
-  }
-
-
-  // -------------------- NEW DISTRIBUTION WIDGET --------------------
-
-  Widget _buildDistributionWidget() {
-    return Padding(
-      padding: const EdgeInsets.all(20.0),
-      child: Container(
+  // ---------------------------------------------------------------------------
+  Widget _backgroundImage() {
+    return Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
+      child: Image.asset(
+        'assets/vector.png',
+        fit: BoxFit.cover,
         height: 200,
-        decoration: BoxDecoration(
-          color: Colors.orange.shade100,
-          borderRadius: BorderRadius.circular(15),
-        ),
-        alignment: Alignment.center,
-        child: const Text(
-          "Distribution Content Here",
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
       ),
     );
   }
 
+  // ---------------------------------------------------------------------------
+  Widget _buildHeader(RouteController controller) {
+    final userInfo = Provider.of<UserInfoProvider>(context);
 
-  // -------------------- EXISTING WIDGET BUILDERS --------------------
-
-  Widget _buildHeader(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(top: 40, left: 20, right: 20, bottom: 10),
+      padding: const EdgeInsets.only(top: 40, left: 20, right: 20),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "Shantanu!",
-                style: TextConstants.smallTextStyle.copyWith(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              Row(
-                children: [
-                  const Icon(Icons.location_on, color: Colors.red, size: 14),
-                  Text(
-                    "Gomiti nagar Lucknow",
-                    style: TextConstants.smallTextStyle.copyWith(fontSize: 13),
-                  ),
-                ],
-              ),
-            ],
+          Expanded(  //Overflow avoid karne ke liye
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  userInfo.isLoadingUser
+                      ? "Loading..."
+                      : "${userInfo.getFullName()}!",
+                  style: TextConstants.smallTextStyle.copyWith(fontSize:20,fontWeight: FontWeight.bold),
+
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(Icons.location_on, color: Colors.red, size: 16),
+                    const SizedBox(width: 4),
+                    Expanded(  //  Long address ke liye
+                      child: Text(
+                        userInfo.isLoadingLocation
+                            ? "Detecting..."
+                            : userInfo.getLocationOnly(),
+                        style: TextConstants.smallTextStyle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-          _buildHeaderIcon(Icons.person_outline, null),
+          _headerIcon(Icons.notifications),
         ],
       ),
     );
   }
 
-  Widget _buildHeaderIcon(IconData icon, String? text) {
+
+
+
+
+  Widget _headerIcon(IconData icon) {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(10),
       ),
-      child: Row(
-        children: [
-          if (text != null)
-            Text(text, style: TextConstants.bodyStyle.copyWith(fontWeight: FontWeight.w600)),
-          if (text != null) const SizedBox(width: 4),
-          Icon(icon, size: 20, color: AppColors.textDark),
-        ],
-      ),
+      child: Icon(icon, size: 20, color: AppColors.textDark),
     );
   }
 
-  Widget _buildRouteTrackingInfo(BuildContext context) {
+  // ---------------------------------------------------------------------------
+  Widget _buildRouteTrackingCard(MapViewSummary summary) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Text("Route Tracking",
+                  style: TextConstants.subHeadingStyle.copyWith(fontSize: 16)),
+              Text("Track your delivery route easily",
+                  style: TextConstants.smallTextStyle),
+            ],
+          ),
+
+          // SPEEDOMETER BUTTON
+          GestureDetector(
+            onTap: () {
+              showDialog(
+                context: context,
+                builder: (_) => SpeedometerDialog(),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.accentRed,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
                 children: [
-                  Text(
-                    "Route Tracking",
-                    style: TextConstants.subHeadingStyle.copyWith(fontSize: 16),
-                  ),
-                  Text(
-                    "Track your delivery route",
-                    style: TextConstants.smallTextStyle,
-                  ),
+                  const Icon(Icons.speed, color: Colors.white, size: 18),
+                  const SizedBox(width: 6),
+                  Text("Speedometer",
+                      style: TextConstants.smallTextStyle.copyWith(
+                          color: Colors.white)),
                 ],
               ),
-              GestureDetector(
-                onTap: () {
-                  showDialog(
-                    context: context,
-                    builder: (context) => SpeedometerDialog(),
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: AppColors.accentRed,
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.speed, size: 20, color: AppColors.white),
-                      const SizedBox(width: 5),
-                      Text(
-                        'Speedometer',
-                        style: TextConstants.bodyStyle.copyWith(
-                          color: AppColors.white,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
-          const SizedBox(height: 10),
-
-          // TABS
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildRouteTab(
-                'Map View',
-                _activeView == 'Map View',
-                    () => setState(() => _activeView = 'Map View'),
-              ),
-              const SizedBox(width: 10),
-
-              _buildRouteTab(
-                'Consumers',
-                _activeView == 'Consumers',
-                    () async {
-                  print("═══════════════════════════════════════");
-                  print("🔵 CONSUMER TAB CLICKED!");
-                  print("═══════════════════════════════════════");
-
-                  setState(() {
-                    _activeView = 'Consumers';
-                    print("✅ Active view set to: $_activeView");
-                  });
-
-                  try {
-                    // Step 1: Get SharedPreferences
-                    print("\n📱 STEP 1: Getting SharedPreferences...");
-                    SharedPreferences prefs = await SharedPreferences.getInstance();
-                    print("✅ SharedPreferences loaded");
-
-                    // Step 2: Check ALL saved keys
-                    print("\n📱 STEP 2: Checking all saved keys...");
-                    Set<String> allKeys = prefs.getKeys();
-                    print("📋 All Keys: $allKeys");
-
-                    // Step 3: Try both possible token keys
-                    print("\n📱 STEP 3: Checking token keys...");
-                    String? token1 = prefs.getString("api_token");
-                    String? token2 = prefs.getString("user_token");
-
-                    print("🔑 api_token: ${token1 != null ? 'EXISTS (${token1.length} chars)' : 'NULL'}");
-                    print("🔑 user_token: ${token2 != null ? 'EXISTS (${token2.length} chars)' : 'NULL'}");
-
-                    // Use whichever token exists
-                    String? token = token1 ?? token2;
-
-                    if (token == null || token.isEmpty) {
-                      print("\n❌ NO TOKEN FOUND!");
-                      print("❌ Available keys: $allKeys");
-
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text("No authentication token found. Please login again."),
-                            backgroundColor: Colors.red,
-                            duration: Duration(seconds: 3),
-                          ),
-                        );
-                      }
-                      return;
-                    }
-
-                    print("\n✅ Token found: ${token.substring(0, 30)}...");
-                    print("✅ Token length: ${token.length}");
-
-                    // Step 4: Check if widget is mounted
-                    print("\n📱 STEP 4: Checking widget mount status...");
-                    if (!mounted) {
-                      print("❌ Widget NOT mounted!");
-                      return;
-                    }
-                    print("✅ Widget is mounted");
-
-                    // Step 5: Get Provider
-                    print("\n📱 STEP 5: Getting ConsumerProvider...");
-                    final provider = Provider.of<ConsumerProvider>(context, listen: false);
-                    print("✅ Provider instance: ${provider.hashCode}");
-                    print("📊 Current consumers count: ${provider.consumers.length}");
-                    print("⏳ Current loading state: ${provider.loading}");
-
-                    // Step 6: Call loadConsumers
-                    print("\n📱 STEP 6: Calling loadConsumers...");
-                    await provider.loadConsumers(token);
-
-                    print("\n🎉 LOAD COMPLETE!");
-                    print("📊 Final consumers count: ${provider.consumers.length}");
-                    print("❌ Error message: ${provider.errorMessage ?? 'None'}");
-
-                    if (provider.consumers.isNotEmpty) {
-                      print("✅ First consumer: ${provider.consumers[0].customerName}");
-                    }
-
-                    print("═══════════════════════════════════════");
-
-                  } catch (e, stackTrace) {
-                    print("\n💥 EXCEPTION IN TAB HANDLER!");
-                    print("❌ Error: $e");
-                    print("❌ Stack trace:\n$stackTrace");
-                    print("═══════════════════════════════════════");
-
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text("Error: $e"),
-                          backgroundColor: Colors.red,
-                          duration: const Duration(seconds: 3),
-                        ),
-                      );
-                    }
-                  }
-                },
-              ),
-
-
-
-
-
-
-
-              const SizedBox(width: 10),
-              _buildRouteTab(
-                'Distribution',
-                _activeView == 'Distribution',
-                    () => setState(() => _activeView = 'Distribution'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 15),
-
-          // Content based on active view
-          if (_activeView == 'Map View')
-            Consumer<RouteController>(
-              builder: (context, controller, child) {
-                if (controller.routeDetails == null) {
-                  return const SizedBox.shrink();
-                }
-                return Row(
-                  children: [
-                  ],
-                );
-              },
-            )
-          else if (_activeView == 'Consumers')
-            const ConsumerScreenWidget()
-          else if (_activeView == 'Distribution')
-            // Your distribution widget here
-              const SizedBox.shrink()
-            else
-              const SizedBox.shrink(),
         ],
       ),
     );
   }
 
+  // ---------------------------------------------------------------------------
+  Widget _buildTabs() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        children: [
+          _tab("Map View", _activeView == "Map View", () {
+            setState(() => _activeView = "Map View");
+          }),
+          const SizedBox(width: 10),
+          _tab("Consumers", _activeView == "Consumers", () async {
+            setState(() => _activeView = "Consumers");
+            await _loadConsumersIfNeeded();
+          }),
+          const SizedBox(width: 10),
+          _tab("Distribution", _activeView == "Distribution", () {
+            setState(() => _activeView = "Distribution");
+          }),
+        ],
+      ),
+    );
+  }
 
-
-
-  Widget _buildRouteTab(String title, bool isActive, VoidCallback onTap) {
+  Widget _tab(String title, bool active, VoidCallback onTap) {
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+          padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: isActive ? AppColors.primary : AppColors.white,
-            borderRadius: BorderRadius.circular(15),
-            border: Border.all(color: isActive ? AppColors.primary : AppColors.textLight.withOpacity(0.5)),
+            color: active ? AppColors.primary : AppColors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+                color: active ? AppColors.primary : Colors.grey.shade300),
           ),
           child: Center(
             child: Text(
               title,
               style: TextConstants.bodyStyle.copyWith(
-                color: isActive ? AppColors.white : AppColors.textDark,
+                color: active ? Colors.white : AppColors.textDark,
                 fontWeight: FontWeight.w600,
-                fontSize: 12,
               ),
             ),
           ),
@@ -421,174 +281,239 @@ class _RouteTrackingScreenState extends State<RouteTrackingScreen> {
     );
   }
 
-  Widget _buildMetricDetailCard(String value, String subtitle) {
-    return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(color: AppColors.textDark.withOpacity(0.05), blurRadius: 5),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(value, style: TextConstants.subHeadingStyle.copyWith(fontSize: 14, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 4),
-          Text(subtitle, style: TextConstants.smallTextStyle),
-        ],
+  // ---------------------------------------------------------------------------
+  Widget _buildMapView(RouteController controller) {
+    final stops = controller.mapViewResponse!.mapData;
+    final pos = controller.currentPosition;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: SizedBox(
+        height: 300,
+        child: LiveMapWidget(
+          stops: stops,
+          userLocation: pos != null
+              ? LatLng(pos.latitude, pos.longitude)
+              : null,
+        ),
       ),
     );
   }
 
-  Widget _buildMapView() {
+  // ---------------------------------------------------------------------------
+  Widget _buildRouteProgress(MapViewSummary summary) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 15),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Container(
-        height: 250,
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.grey[300],
+          color: AppColors.white,
           borderRadius: BorderRadius.circular(15),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: Offset(0, 5)),
+            BoxShadow(
+              color: Colors.grey.shade200,
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
           ],
         ),
-        child: const LiveMapWidget(),
-      ),
-    );
-  }
-
-  Widget _buildRouteProgressCard(BuildContext context, RouteDetails details) {
-    final completed = details.completedStops;
-    final total = details.totalStops;
-    final pending = total - completed;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20.0),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(15),
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(15),
-              boxShadow: [
-                BoxShadow(color: AppColors.textDark.withOpacity(0.05), blurRadius: 5),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Route Progress', style: TextConstants.subHeadingStyle.copyWith(fontSize: 14)),
-                    Text('${details.progressPercent.toStringAsFixed(0)}%',
-                        style: TextConstants.headingStyle.copyWith(color: AppColors.accentRed, fontSize: 12)),
-                  ],
+                Text(
+                  "Route Progress",
+                  style: TextConstants.subHeadingStyle.copyWith(fontSize: 16),
                 ),
-                const SizedBox(height: 8),
-                LinearProgressIndicator(
-                  value: details.progressPercent / 100,
-                  backgroundColor: AppColors.cardBackground,
-                  valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
-                  minHeight: 4,
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('$completed Completed', style: TextConstants.smallTextStyle.copyWith(fontSize: 12)),
-                    Text('$pending Pending',
-                        style: TextConstants.smallTextStyle.copyWith(color: AppColors.accentRed, fontSize: 12)),
-                  ],
+                Text(
+                  "${summary.percentage}%",
+                  style: TextConstants.subHeadingStyle.copyWith(
+                    fontSize: 18,
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 15),
-
-          SizedBox(
-            width: 200,
-            child: ElevatedButton(
-              onPressed: () {},
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                elevation: 3,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  const Icon(Icons.location_on, color: AppColors.white, size: 12),
-                  Text('Start Route Navigation',
-                      style: TextConstants.subHeadingStyle.copyWith(color: AppColors.white, fontSize: 12)),
-                ],
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LinearProgressIndicator(
+                value: summary.percentage / 100,
+                minHeight: 8,
+                color: AppColors.primary,
+                backgroundColor: Colors.grey.shade200,
               ),
             ),
-          ),
-        ],
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _progressItem(
+                  Icons.check_circle,
+                  "${summary.completed} Completed",
+                  Colors.green,
+                ),
+                _progressItem(
+                  Icons.pending,
+                  "${summary.pending} Pending",
+                  AppColors.accentRed,
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildRecentDeliveries(BuildContext context, List<Delivery> deliveries) {
+
+
+  Widget _progressItem(IconData icon, String text, Color color) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: 6),
+        Text(
+          text,
+          style: TextConstants.smallTextStyle.copyWith(
+            color: color,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRecentDeliveries(List<MapStop> stops) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Recent Deliveries', style: TextConstants.subHeadingStyle),
-          const SizedBox(height: 10),
+          Text(
+            "Recent Deliveries",
+            style: TextConstants.subHeadingStyle.copyWith(fontSize: 16),
+          ),
+          const SizedBox(height: 12),
 
-          ...deliveries.map((d) => _buildDeliveryItem(d)).toList(),
+          // ✅ Delivery cards
+          ...stops.take(5).map((stop) => _deliveryCard(stop)).toList(),
         ],
       ),
     );
   }
 
-  Widget _buildDeliveryItem(Delivery d) {
-    final statusColor = d.isCompleted ? Colors.lightGreen : AppColors.accentRed;
+  Widget _deliveryCard(MapStop stop) {
+    final isDelivered = stop.status.toLowerCase() == "delivered";
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(15),
-        border: Border(left: BorderSide(color: statusColor, width: 6)),
         boxShadow: [
-          BoxShadow(color: AppColors.textDark.withOpacity(0.05), blurRadius: 5),
+          BoxShadow(
+            color: Colors.grey.shade200,
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
         ],
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              Icon(d.isCompleted ? Icons.check_circle : Icons.radio_button_checked,
-                  color: statusColor, size: 24),
-              const SizedBox(width: 10),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(d.customerName, style: TextConstants.bodyStyle.copyWith(fontWeight: FontWeight.w600)),
-                  Text(d.time, style: TextConstants.smallTextStyle),
-                ],
-              ),
-            ],
+          // ✅ Left side icon
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: isDelivered ? Colors.green.shade50 : Colors.red.shade50,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              isDelivered ? Icons.check_circle : Icons.inventory_2_outlined,
+              color: isDelivered ? Colors.green : Colors.red,
+              size: 26,
+            ),
           ),
 
-          Row(
+          const SizedBox(width: 14),
+
+          // ✅ Customer info
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  stop.customerName,
+                  style: TextConstants.bodyStyle.copyWith(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.location_on_outlined,
+                      size: 14,
+                      color: Colors.grey.shade600,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        stop.address,
+                        style: TextConstants.smallTextStyle.copyWith(
+                          color: Colors.grey.shade600,
+                          fontSize: 12,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(width: 12),
+
+          // ✅ Right side icons (call & message)
+          Column(
             children: [
-              const Icon(Icons.call, color: AppColors.primary, size: 24),
-              const SizedBox(width: 10),
-              const Icon(Icons.message, color: AppColors.primary, size: 24),
+              _actionButton(Icons.phone, Colors.orange),
+              const SizedBox(height: 8),
+              _actionButton(Icons.message, Colors.grey),
             ],
           ),
         ],
       ),
     );
   }
+
+  Widget _actionButton(IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Icon(icon, size: 18, color: color),
+    );
+  }
+
+
+
+
+
+
+
+
 }
